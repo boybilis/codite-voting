@@ -1,4 +1,4 @@
-# Assembly — PHP / MySQL officer elections
+# Assembly by iBarakoTech — PHP / MySQL officer elections
 
 A Bootstrap application for registered-member nominations, nominee acceptance, and officer voting. Designed for PHP 8.2+ with MySQL 8 or MariaDB, including Hostinger PHP hosting. The app uses locally served Bootstrap, PHPMailer for SMTP, and Endroid for QR codes; no JavaScript build server is needed.
 

@@ -1,10 +1,13 @@
 <?php
 declare(strict_types=1);
 
+function siteName(): string { return 'Assembly by iBarakoTech'; }
+
 function config(): array {
     static $config;
     if ($config === null) {
         $config = require __DIR__ . '/../config.local.php';
+        $config['app_name'] = siteName();
         if (($config['environment'] ?? 'production') === 'production') {
             $config['base_url'] = require __DIR__ . '/site.php';
         }
@@ -57,7 +60,7 @@ function rateLimit(string $key, int $limit, int $seconds): void {
 }
 function sendCode(string $email, string $code, string $purpose): void {
     $c = config(); $m = $c['mail'];
-    $body = "Your Assembly verification code is: $code\n\nPurpose: $purpose\nThis code expires in 10 minutes. Do not share it. If you did not request it, ignore this message.";
+    $body = "Your ".siteName()." verification code is: $code\n\nPurpose: $purpose\nThis code expires in 10 minutes. Do not share it. If you did not request it, ignore this message.";
     if ($m['transport'] === 'log' && $c['environment'] === 'local') {
         file_put_contents(__DIR__ . '/../storage/mail.log', gmdate('c') . " To: $email\n$body\n\n", FILE_APPEND | LOCK_EX); return;
     }
@@ -67,8 +70,8 @@ function sendCode(string $email, string $code, string $purpose): void {
     $mail->Username = $m['username']; $mail->Password = $m['password'];
     $mail->SMTPSecure = $m['encryption'] === 'ssl' ? PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_SMTPS : PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
     $mail->Timeout = 15; $mail->CharSet = 'UTF-8';
-    $mail->setFrom($m['from_email'], $m['from_name']); $mail->addAddress($email);
-    $mail->Subject = "Assembly: your $purpose verification code"; $mail->Body = $body; $mail->send();
+    $mail->setFrom($m['from_email'], siteName()); $mail->addAddress($email);
+    $mail->Subject = siteName().": your $purpose verification code"; $mail->Body = $body; $mail->send();
 }
 function issueOtp(string $email, string $purpose, string $context): string {
     rateLimit('otp-email:' . $email, 5, 3600);

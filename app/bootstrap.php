@@ -7,7 +7,7 @@ ini_set('error_log', __DIR__ . '/../storage/error.log');
 require_once __DIR__ . '/core.php';
 if (!is_file(__DIR__.'/../config.local.php')) {
     http_response_code(503);
-    exit('Assembly is not configured. Copy config.example.php to config.local.php, enter your database and mail settings, then visit setup.php. See README.md for setup instructions.');
+    exit('Assembly by iBarakoTech is not configured. Copy config.example.php to config.local.php, enter your database and mail settings, then visit setup.php. See README.md for setup instructions.');
 }
 header('Cache-Control: no-store, private');
 $keyError = appKeyError(config()['app_key'] ?? null);
@@ -32,7 +32,7 @@ $_SESSION['last_seen']=time();
 $_SESSION['csrf'] ??= bin2hex(random_bytes(32));
 set_exception_handler(function(Throwable $err): void {
     error_log((string)$err); http_response_code(500);
-    echo '<!doctype html><html lang="en"><meta charset="utf-8"><title>Assembly</title><h1>Unable to complete this request</h1><p>Please try again or contact your election administrator.</p></html>';
+    echo '<!doctype html><html lang="en"><meta charset="utf-8"><title>'.e(siteName()).'</title><h1>Unable to complete this request</h1><p>Please try again or contact your election administrator.</p></html>';
 });
 
 require_once __DIR__ . '/migrations.php';
