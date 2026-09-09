@@ -1,0 +1,7 @@
+/config.local.php
+/vendor/*
+!/vendor/.htaccess
+/storage/*
+!/storage/.htaccess
+!/storage/.gitkeep
+/release/

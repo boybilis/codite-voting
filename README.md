@@ -1,0 +1,106 @@
+# Assembly — PHP / MySQL officer elections
+
+A Bootstrap application for registered-member nominations, nominee acceptance, and officer voting. Designed for PHP 8.2+ with MySQL 8 or MariaDB, including Hostinger PHP hosting. The app uses locally served Bootstrap, PHPMailer for SMTP, and Endroid for QR codes; no JavaScript build server is needed.
+
+## Open the local installation
+
+XAMPP Apache and MySQL must be running.
+
+1. Open **http://localhost/codite/setup.php**.
+2. Copy the private setup key from `storage/setup-key.txt`.
+3. Enter your name, your own admin email, and a password of at least 12 characters.
+4. Create the account. Setup locks automatically after the first admin is created.
+
+There is no shared default admin password. The local configuration and database have already been prepared. On another XAMPP machine, install dependencies with `composer install`, then run `php bin/configure-local.php` once.
+
+The local configuration uses `mail.transport = log`. It does **not** send real emails. Read verification codes from `storage/mail.log` on your computer. This directory is blocked from web access by `.htaccess`. Local database name: `codite_assembly`.
+
+## Election workflow
+
+1. **Settings:** Choose an election title, maximum nominees per member, maximum votes per member, and number of officer positions. These are separate limits from 1 to 100. They lock once nominations open.
+2. **Members:** Add first name, last name, optional middle initial, and email individually, or import a CSV. Duplicate emails are skipped without overwriting existing members. The register can be expanded through the nomination phase and locks afterward.
+3. **Open nominations:** Share the nomination link or download its QR code. Members enter their registered email, verify a six-digit email code, select between one and the configured maximum number of members, and submit once. Self-nomination is allowed.
+4. **Close nominations:** The app enters nominee review. The admin contacts each nominee, then records **Accepted** or **Denied** in the action dropdown. Pending responses block voting.
+5. **Open voting:** At least one nominee must accept. Share the separate voting QR/link. Members verify their email again. Only accepted nominees appear, and each member can submit one voting ballot with up to the configured number of selections.
+6. **Close voting:** Results change from provisional to final. The top candidates with positive vote totals are marked elected up to the configured officer count. A tie across the last available position is flagged for administrator resolution under the organization's rules; tied candidates are not arbitrarily declared elected. This app does not automate a runoff. Fewer positive-vote candidates than positions leaves vacancies.
+7. **Export:** Download nomination and voting tallies as CSV. Live tallies and exports are admin-only. Refresh a tally page to obtain current counts.
+
+Submission is final. A member cannot submit again by refreshing, re-verifying, changing browsers, or scanning the QR again. QR codes contain participation URLs, not member information. Email addresses are shown in the admin register, not on member ballots. The database records which member submitted each ballot; this is not an anonymous ballot system.
+
+## CSV template
+
+Use UTF-8 CSV with these headers (the initial column may be blank):
+
+```csv
+first_name,last_name,middle_initial,email
+Juan,Dela Cruz,A,juan@example.com
+Maria,Santos,,maria@example.com
+```
+
+The Members page provides a template download. Uploads are limited to 2 MB and 5,000 rows. All rows are validated before importing; malformed rows prevent the whole import. Quoted commas and a UTF-8 BOM are supported. Email addresses are normalized to lowercase.
+
+## Verified resets
+
+Every reset requires the current admin password, a fresh code delivered to the admin email, and typing `RESET`. No data is deleted when the code is requested.
+
+| Reset option | Removes | Preserves | Next phase |
+| --- | --- | --- | --- |
+| Voting only | Voting submissions and choices | Members, nominations, nominee responses | Review |
+| Nominations and votes | Both stages and nominee responses | Members | Draft |
+| Everything | Members and all election participation | Admin account, settings, activity log | Draft |
+
+All reset options expire existing member verifications and outstanding OTPs. Reset codes are tied to the selected scope and election generation. Deleted records cannot be recovered through the app; export results and retain a database backup when needed.
+
+## Deploy to Hostinger
+
+Use the packaged `release/assembly-hostinger.zip`, which includes the installed PHP dependencies but excludes local secrets, sessions, test data, and logs.
+
+1. Select PHP **8.2 or newer** with `pdo_mysql`, `mbstring`, `openssl`, `iconv`, and sessions enabled. Create an empty MySQL/MariaDB database and a database user.
+2. Upload and extract the release ZIP into the intended site folder, commonly `public_html` or a subfolder. Preserve all `.htaccess` files, including the files inside `app`, `vendor`, and `storage`.
+3. Copy `config.example.php` to `config.local.php`. Set `base_url` to the exact public **HTTPS** URL, including any subfolder. Keep `environment` as `production`.
+4. Enter your hosting database host, port, database name, username, and password.
+5. Generate different random values for `app_key` and `setup_key`. For example, run `php -r "echo bin2hex(random_bytes(32)), PHP_EOL;"` twice on a trusted machine. Do not reuse the local setup key.
+6. Create a sending mailbox. Set `mail.transport` to `smtp`, enter its full email address and mailbox password, and set `from_email` to that mailbox.
+7. Enable HTTPS and force HTTPS access in your hosting settings. Allow PHP to write to `storage` (normally owner-writable directories, not world-writable permissions).
+8. Visit `https://your-domain.com/setup.php`, supply the private setup key, and create your administrator. The installer creates the tables in the configured database and then locks itself.
+9. Add a test member you control. Open nominations and verify a real email delivery, ballot submission, and the admin reset code before inviting your members. Set final election limits in draft after your test reset.
+10. Confirm private files return HTTP 403: `/storage/setup-key.txt`, `/app/schema.sql`, and `/config.local.php`. Download fresh QR codes after setting the public URL; a localhost QR cannot direct another phone to your hosted site.
+
+For Hostinger Email, the supplied configuration defaults to `smtp.hostinger.com`, port `465`, encryption `ssl`. Port `587` with `tls` is also supported. Use the mailbox password, not your hosting account password. For a different email provider, use that provider's SMTP details. See [Hostinger's PHPMailer instructions](https://www.hostinger.com/tutorials/how-to-send-emails-using-phpmailer) and [Hostinger Email connection settings](https://www.hostinger.com/support/4305847-set-up-hostinger-email-on-your-applications-and-devices/).
+
+Actual Hostinger deployment and outbound SMTP delivery have not been performed in this local build; they require your domain, database settings, and mailbox credentials.
+
+## Technical behavior
+
+- Prepared database queries, escaped output, CSRF protection, password hashing, and HttpOnly / SameSite cookies.
+- In production, secure cookies require HTTPS. Admin sessions expire after 30 minutes of inactivity. Member verification also expires after 30 minutes.
+- OTPs are stored as password hashes, expire after 10 minutes, are tied to email, stage, session, and election generation, and lock after five failures. Successful verification consumes the code.
+- One OTP per email per 60 seconds; at most five email OTP requests per hour. IP request limits default to 1,000/hour for OTP requests and 1,000/15 minutes for verification, allowing shared event Wi-Fi. Optional `rate_limits.otp_ip_per_hour` and `rate_limits.verification_ip_per_15min` configuration values can tune these limits. Admin login has separate IP and email limits.
+- Database transactions lock the election row when accepting ballots, changing phases, reviewing nominees, importing members, or resetting. A unique database constraint permits one submission per member and stage; another prevents duplicate candidate choices per submission.
+- Atomic reset operations retain an admin activity record. Completed ballots and accepted nominee lists cannot be changed by the admin without a verified reset.
+- SMTP errors are shown generically to members and written to the private application log. SMTP credentials are never rendered in the UI.
+- Member names, membership status, and ballot choices are server-validated, even if someone bypasses the browser selection limits.
+- Bootstrap and QR assets are served locally. No external QR service receives the election URL.
+- For a non-Apache server, configure equivalent private-directory restrictions. PHP's bare development server does not enforce `.htaccess`; use XAMPP for the local installation.
+
+## Tests and packaging
+
+Run `composer test` to execute the core and HTTP integration suites. Tests require local mode and permission to create/drop isolated test databases; they do not reset the application's database. The HTTP suite uses a temporary local server and fixture directory and cleans up its own data.
+
+Test coverage includes CSV validation/atomicity, membership eligibility, limits, duplicate submissions, phase restrictions, nominee acceptance, ranking and cutoff ties, OTP binding/expiry/lockout/replay, CSRF, full HTTP member and admin flows, exports, QR generation, and all reset scopes. Core queries are also tested with strict SQL grouping enabled.
+
+Run `php bin/package.php` to rebuild the Hostinger ZIP. The release contains dependencies, so Composer is not required on the hosting server. For source installs, run `composer install --no-dev --optimize-autoloader` instead.
+
+Application entry points: `index.php` and the one-time `setup.php`. Shared application logic is in `app/core.php`, page rendering in `app/views.php`, database tables in `app/schema.sql`, and Bootstrap customizations in `assets/app.css`.
+
+## Deploy from this GitHub repository
+
+The repository intentionally excludes `config.local.php`, installed Composer packages, generated ZIPs, and all private files in `storage`. Do not upload your local configuration to GitHub.
+
+1. Deploy the `main` branch from `https://github.com/boybilis/codite-voting.git` into your Hostinger site folder.
+2. In that folder, run `composer install --no-dev --optimize-autoloader` with PHP 8.2 or newer. If your hosting plan does not provide Composer/SSH, run this locally and upload the resulting `vendor` folder, or build and upload the release ZIP instead.
+3. Create `config.local.php` on the server from `config.example.php`, entering the production HTTPS URL, Hostinger database credentials, SMTP mailbox credentials, and freshly generated keys.
+4. Make `storage` writable by PHP, preserve the `.htaccess` files, and open `/setup.php` to create your admin account.
+5. Follow the real email and private-file checks in the Hostinger deployment section above. The app does not automatically read Hostinger database or email settings.
+
+Future pulls preserve your untracked configuration and local data. Keep server-side backups separately. Do not run `bin/configure-local.php` on production; that helper is only for XAMPP.

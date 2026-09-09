@@ -1,0 +1,8 @@
+Options -Indexes
+DirectoryIndex index.php
+<FilesMatch "^(config.*\.php|composer\.(json|lock)|.*\.(sql|md|log))$">
+  Require all denied
+</FilesMatch>
+
+RewriteEngine On
+RewriteRule ^\.git(?:/|$) - [F,L]
