@@ -7,6 +7,7 @@ if(config()['environment']!=='local') exit("Tests require a local configuration.
 $_SESSION=['csrf'=>'test-token'];
 $testDb='assembly_test_'.bin2hex(random_bytes(6));
 $checks=0;
+require dirname(__DIR__).'/app/migrations.php';
 function check(bool $ok,string $label): void { global $checks; if(!$ok) throw new RuntimeException('FAIL: '.$label); $checks++; echo "PASS $label\n"; }
 function rejects(callable $fn,string $label): void { try { $fn(); } catch(DomainException $e) { check(true,$label); return; } throw new RuntimeException('FAIL: '.$label.' (not rejected)'); }
 try {
@@ -14,6 +15,9 @@ try {
     db()->exec("USE `$testDb`");
     db()->exec(file_get_contents(dirname(__DIR__).'/app/schema.sql'));
     db()->exec("SET SESSION sql_mode = 'STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION,ONLY_FULL_GROUP_BY'");
+    db()->exec('ALTER TABLE members DROP COLUMN school, DROP COLUMN position');
+    migrateMemberProfiles(); migrateMemberProfiles();
+    check(count(query("SHOW COLUMNS FROM members WHERE Field IN ('school','position')")->fetchAll())===2,'Existing database profile upgrade is repeatable');
     check(election()['phase']==='draft','Fresh election starts in draft');
     rejects(fn()=>changePhase('nomination'),'Cannot open an empty election');
     rejects(fn()=>changePhase('voting'),'Cannot skip election phases');
@@ -32,6 +36,15 @@ try {
     query('UPDATE elections SET nomination_limit=2,vote_limit=1,officer_count=1 WHERE id=1');
     $ids=array_map('intval',query('SELECT id FROM members ORDER BY id')->fetchAll(PDO::FETCH_COLUMN));
     [$a,$b,$c,$d]=$ids;
+    updateMemberProfile($a,['school'=>'Central School','position'=>'Teacher']);
+    check(one('SELECT school,position FROM members WHERE id=?',[$a])===['school'=>'Central School','position'=>'Teacher'],'Existing member profile can be updated');
+    rejects(fn()=>updateMemberProfile($a,['school'=>str_repeat('X',161)]),'School length is validated');
+    check(memberInput($members[0])['school']==='', 'Older member inputs remain compatible');
+    $csv=tempnam(dirname(__DIR__).'/storage','profile-csv');
+    file_put_contents($csv,"first_name,last_name,middle_initial,email,school,position\nMia,Santos,,mia@example.test,Central School,Principal\n");
+    $profileRows=parseCsv($csv); unlink($csv);
+    check($profileRows[0]['school']==='Central School' && $profileRows[0]['position']==='Principal','CSV imports School and Position');
+    check(csvText('=FORMULA')==="'=FORMULA",'Profile exports escape formula prefixes');
     changePhase('nomination');
     rejects(fn()=>submitBallot($a,'nomination',1,[]),'Empty ballot is rejected');
     rejects(fn()=>submitBallot($a,'nomination',1,[$a,$b,$c]),'Selection limit is enforced on server');
@@ -46,6 +59,7 @@ try {
     $t=tally('nomination'); check((int)$t[0]['id']===$b && (int)$t[0]['votes']===2,'Repeated nominations tally correctly');
     rejects(fn()=>decideNominee($b,'accepted'),'Responses cannot change while nominations are open');
     changePhase('review');
+    rejects(fn()=>updateMemberProfile($a,['school'=>'Changed','position'=>'Changed']),'Profiles lock after nomination close');
     rejects(fn()=>submitBallot($c,'nomination',1,[$b]),'Closed nominations reject ballots');
     rejects(fn()=>addMembers([['first_name'=>'New','last_name'=>'Member','email'=>'new@example.test']]),'Member register locks after nominations');
     rejects(fn()=>changePhase('voting'),'Pending responses block voting');

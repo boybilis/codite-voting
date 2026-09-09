@@ -56,6 +56,8 @@ if($_SERVER['REQUEST_METHOD']==='POST') {
             switch($action) {
                 case 'add_member':
                     [$added,$skipped]=addMembers([$_POST]); flash($added?'Member added.':'That email is already registered.',$added?'success':'warning'); break;
+                case 'update_profile':
+                    updateMemberProfile((int)($_POST['member_id']??0),$_POST); flash('Member profile saved.'); break;
                 case 'import_csv':
                     $file=$_FILES['csv']??null;
                     if(!$file || $file['error']!==UPLOAD_ERR_OK || $file['size']>2*1024*1024 || !is_uploaded_file($file['tmp_name']) || strtolower(pathinfo($file['name'],PATHINFO_EXTENSION))!=='csv') throw new DomainException('Upload a CSV file up to 2 MB.');
@@ -99,11 +101,11 @@ if($_SERVER['REQUEST_METHOD']==='POST') {
 if($page==='export') {
     $stage=($_GET['stage']??'nomination')==='voting'?'voting':'nomination';
     header('Content-Type: text/csv; charset=utf-8'); header('Content-Disposition: attachment; filename="'.$stage.'-results.csv"');
-    $out=fopen('php://output','w'); fputcsv($out,['Name','Votes',$stage==='voting'?'Result':'Decision']);
+    $out=fopen('php://output','w'); fputcsv($out,['Name','School','Position','Votes',$stage==='voting'?'Result':'Decision']);
     $rows=$stage==='voting'?rankResults(tally($stage),(int)election()['officer_count']):tally($stage);
-    foreach($rows as $r) { $n=name($r); if(preg_match('/^[=+@\-\t\r]/',$n)) $n="'".$n; fputcsv($out,[$n,$r['votes'],$stage==='voting'?(election()['phase']==='closed'?$r['result']:'Provisional'):$r['decision']]); } fclose($out); exit;
+    foreach($rows as $r) { $n=name($r); if(preg_match('/^[=+@\-\t\r]/',$n)) $n="'".$n; fputcsv($out,[$n,csvText($r['school']),csvText($r['position']),$r['votes'],$stage==='voting'?(election()['phase']==='closed'?$r['result']:'Provisional'):$r['decision']]); } fclose($out); exit;
 }
-if($page==='template') { header('Content-Type: text/csv'); header('Content-Disposition: attachment; filename="members-template.csv"'); echo "first_name,last_name,middle_initial,email\nJuan,Dela Cruz,A,juan@example.com\n"; exit; }
+if($page==='template') { header('Content-Type: text/csv'); header('Content-Disposition: attachment; filename="members-template.csv"'); echo "first_name,last_name,middle_initial,email,school,position\nJuan,Dela Cruz,A,juan@example.com,Sample School,Teacher\n"; exit; }
 if($page==='qr') {
     $stage=($_GET['stage']??'nomination')==='voting'?'voting':'nomination';
     $qr=Endroid\QrCode\QrCode::create(url('index.php?page=participate&stage='.$stage))->setSize(320)->setMargin(16);

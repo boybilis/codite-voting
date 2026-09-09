@@ -18,7 +18,7 @@ The local configuration uses `mail.transport = log`. It does **not** send real e
 ## Election workflow
 
 1. **Settings:** Choose an election title, maximum nominees per member, maximum votes per member, and number of officer positions. These are separate limits from 1 to 100. They lock once nominations open.
-2. **Members:** Add first name, last name, optional middle initial, and email individually, or import a CSV. Duplicate emails are skipped without overwriting existing members. The register can be expanded through the nomination phase and locks afterward.
+2. **Members:** Add first name, last name, optional middle initial, email, School, and Position individually, or import a CSV. Duplicate emails are skipped without overwriting existing members. The register can be expanded through the nomination phase and locks afterward.
 3. **Open nominations:** Share the nomination link or download its QR code. Members enter their registered email, verify a six-digit email code, select between one and the configured maximum number of members, and submit once. Self-nomination is allowed.
 4. **Close nominations:** The app enters nominee review. The admin contacts each nominee, then records **Accepted** or **Denied** in the action dropdown. Pending responses block voting.
 5. **Open voting:** At least one nominee must accept. Share the separate voting QR/link. Members verify their email again. Only accepted nominees appear, and each member can submit one voting ballot with up to the configured number of selections.
@@ -32,9 +32,9 @@ Submission is final. A member cannot submit again by refreshing, re-verifying, c
 Use UTF-8 CSV with these headers (the initial column may be blank):
 
 ```csv
-first_name,last_name,middle_initial,email
-Juan,Dela Cruz,A,juan@example.com
-Maria,Santos,,maria@example.com
+first_name,last_name,middle_initial,email,school,position
+Juan,Dela Cruz,A,juan@example.com,Central School,Teacher
+Maria,Santos,,maria@example.com,Central School,Principal
 ```
 
 The Members page provides a template download. Uploads are limited to 2 MB and 5,000 rows. All rows are validated before importing; malformed rows prevent the whole import. Quoted commas and a UTF-8 BOM are supported. Email addresses are normalized to lowercase.
@@ -104,3 +104,11 @@ The repository intentionally excludes `config.local.php`, installed Composer pac
 5. Follow the real email and private-file checks in the Hostinger deployment section above. The app does not automatically read Hostinger database or email settings.
 
 Future pulls preserve your untracked configuration and local data. Keep server-side backups separately. Do not run `bin/configure-local.php` on production; that helper is only for XAMPP.
+
+## School and Position upgrade
+
+School (up to 160 characters) and Position (up to 120 characters, such as Teacher or Principal) are optional member profile fields. The Members page allows administrators to edit these fields during draft and nominations. They are shown on member ballots, nominee lists, results, and tally exports. Member and ballot searches include these fields.
+
+Older four-column CSV files still work; add optional school and position columns to import these details. Duplicate emails are still skipped; use Save profile in the directory to update existing records.
+
+Existing deployments add the two database columns automatically on the first request after updating. This preserves members, nominations, and votes, and requires the application's database user to have ALTER permission on the members table. Existing profiles start with blank School and Position values.

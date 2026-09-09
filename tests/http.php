@@ -27,7 +27,7 @@ try {
     $pdo->exec("CREATE DATABASE `$dbName` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
     mkdir($folder); mkdir($folder.'/app'); mkdir($folder.'/storage'); mkdir($folder.'/vendor');
     foreach(['index.php','setup.php'] as $f) copy($root.'/'.$f,$folder.'/'.$f);
-    foreach(['core.php','bootstrap.php','views.php','schema.sql'] as $f) copy($root.'/app/'.$f,$folder.'/app/'.$f);
+    foreach(['core.php','bootstrap.php','views.php','migrations.php','schema.sql'] as $f) copy($root.'/app/'.$f,$folder.'/app/'.$f);
     file_put_contents($folder.'/vendor/autoload.php',"<?php require ".var_export($root.'/vendor/autoload.php',true).";");
     $config['base_url']=$base; $config['db']['name']=$dbName; $config['setup_key']=bin2hex(random_bytes(24)); $config['mail']['transport']='log';
     file_put_contents($folder.'/config.local.php',"<?php return ".var_export($config,true).";");
@@ -48,6 +48,9 @@ try {
     foreach(['Ana','Ben','Cara'] as $name) post('admin','index.php?page=members',['action'=>'add_member','first_name'=>$name,'last_name'=>'Member','middle_initial'=>'A','email'=>strtolower($name).'@example.test']);
     $ids=$pdo->query('SELECT id FROM members ORDER BY id')->fetchAll(PDO::FETCH_COLUMN); [$a,$b,$c]=$ids;
     check(count($ids)===3,'HTTP individual member entry works');
+    post('admin','index.php?page=members',['action'=>'update_profile','member_id'=>$b,'school'=>'Central School','position'=>'Principal']);
+    [, $profileHtml]=request('admin','index.php?page=members&q=Central');
+    check(str_contains($profileHtml,'Central School') && str_contains($profileHtml,'Principal'),'School and Position are editable and searchable');
     post('admin','index.php?page=dashboard',['action'=>'phase','next'=>'nomination']);
     $nom='index.php?page=participate&stage=nomination';
     [, $html]=request('member',$nom); check(str_contains($html,'Verify your membership') && !str_contains($html,'Ana A. Member'),'Candidate names are hidden before verification');
@@ -56,6 +59,7 @@ try {
     check((int)$pdo->query('SELECT COUNT(*) FROM otp_challenges')->fetchColumn()===0,'Unknown members receive no OTP');
     post('member',$nom,['action'=>'request_otp','email'=>'ana@example.test']); $code=lastCode();
     [, $html]=post('member',$nom,['action'=>'verify_otp','code'=>$code]); check(str_contains($html,'Who would you like to nominate?'),'Email OTP unlocks nomination ballot');
+    check(str_contains($html,'Central School') && str_contains($html,'Principal'),'Member ballot displays School and Position');
     [, $html]=post('member',$nom,['action'=>'submit_ballot','candidates'=>[$b,$c]]); check(str_contains($html,'Nominations submitted'),'Nomination submission reaches success page');
     post('member',$nom,['action'=>'submit_ballot','candidates'=>[$b]]);
     check((int)$pdo->query("SELECT COUNT(*) FROM submissions WHERE stage='nomination'")->fetchColumn()===1,'Duplicate HTTP submission is blocked');

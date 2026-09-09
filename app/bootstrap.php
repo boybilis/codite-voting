@@ -29,3 +29,6 @@ set_exception_handler(function(Throwable $err): void {
     error_log((string)$err); http_response_code(500);
     echo '<!doctype html><html lang="en"><meta charset="utf-8"><title>Assembly</title><h1>Unable to complete this request</h1><p>Please try again or contact your election administrator.</p></html>';
 });
+
+require_once __DIR__ . '/migrations.php';
+migrateMemberProfiles();

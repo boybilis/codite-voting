@@ -80,7 +80,7 @@ function consumeOtp(string $id, string $email, string $purpose, string $context,
 }
 function memberInput(array $input): array {
     $m = [];
-    foreach (['first_name'=>100,'last_name'=>100,'middle_initial'=>10,'email'=>254] as $key=>$max) {
+    foreach (['first_name'=>100,'last_name'=>100,'middle_initial'=>10,'email'=>254,'school'=>160,'position'=>120] as $key=>$max) {
         $m[$key] = trim((string)($input[$key] ?? ''));
         if (mb_strlen($m[$key]) > $max || preg_match('/[\x00-\x1F\x7F]/u', $m[$key])) throw new DomainException('A member field is too long or contains invalid characters.');
     }
@@ -96,7 +96,7 @@ function addMembers(array $rows): array {
         foreach ($rows as $row) {
             $m = memberInput($row);
             if (one('SELECT id FROM members WHERE email=?', [$m['email']])) { $skipped++; continue; }
-            query('INSERT INTO members (first_name,last_name,middle_initial,email) VALUES (?,?,?,?)', array_values($m)); $added++;
+            query('INSERT INTO members (first_name,last_name,middle_initial,email,school,position) VALUES (?,?,?,?,?,?)', array_values($m)); $added++;
         }
         audit('members_added', compact('added','skipped')); return [$added,$skipped];
     });
@@ -186,4 +186,19 @@ function resetElection(string $scope, int $generation): void {
         query('UPDATE elections SET phase=?,generation=generation+1 WHERE id=1',[$scope==='votes'?'review':'draft']);
         audit('reset',['scope'=>$scope,'previous_generation'=>$generation]);
     });
+}
+
+function updateMemberProfile(int $id, array $input): void {
+    transaction(function () use ($id, $input) {
+        if (!in_array(election(true)['phase'], ['draft','nomination'], true)) throw new DomainException('Member profiles are locked after nominations close.');
+        $member = one('SELECT * FROM members WHERE id=?', [$id]);
+        if (!$member) throw new DomainException('Member not found.');
+        $validated = memberInput(array_merge($member, ['school'=>$input['school']??'', 'position'=>$input['position']??'']));
+        query('UPDATE members SET school=?,position=? WHERE id=?', [$validated['school'],$validated['position'],$id]);
+        audit('member_profile_updated', ['member_id'=>$id]);
+    });
+}
+
+function csvText(string $value): string {
+    return preg_match('/^[=+@\-\t\r]/', $value) ? "'".$value : $value;
 }
