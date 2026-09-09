@@ -115,6 +115,20 @@ if($page==='export') {
     $rows=$stage==='voting'?rankResults(tally($stage),(int)election()['officer_count']):tally($stage);
     foreach($rows as $r) { $n=name($r); if(preg_match('/^[=+@\-\t\r]/',$n)) $n="'".$n; fputcsv($out,[$n,csvText($r['school']),csvText($r['position']),$r['votes'],$stage==='voting'?(election()['phase']==='closed'?$r['result']:'Provisional'):$r['decision']]); } fclose($out); exit;
 }
+if ($page === 'export_members') {
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="registered-members-'.gmdate('Y-m-d').'.csv"');
+    $out = fopen('php://output', 'w');
+    fwrite($out, "\xEF\xBB\xBF");
+    $fields = ['first_name','last_name','middle_initial','email','school','position'];
+    fputcsv($out, array_merge($fields, ['assembly_backup_version']), ',', '"', '');
+    $members = query('SELECT first_name,last_name,middle_initial,email,school,position FROM members ORDER BY last_name,first_name,id');
+    while ($member = $members->fetch()) {
+        $values = array_map(fn($field)=>memberBackupText($member[$field]), $fields);
+        fputcsv($out, array_merge($values, ['1']), ',', '"', '');
+    }
+    fclose($out); exit;
+}
 if($page==='template') { header('Content-Type: text/csv'); header('Content-Disposition: attachment; filename="members-template.csv"'); echo "first_name,last_name,middle_initial,email,school,position\nJuan,Dela Cruz,A,juan@example.com,Sample School,Teacher\n"; exit; }
 if($page==='qr') {
     $stage=($_GET['stage']??'nomination')==='voting'?'voting':'nomination';

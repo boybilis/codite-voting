@@ -131,3 +131,11 @@ The app reads `app_key` from the private `config.local.php` next to `index.php`.
 To generate a key once, run `php -r "echo bin2hex(random_bytes(32)), PHP_EOL;"` on a trusted machine or your hosting terminal. Paste the resulting 64-character value into the existing `app_key` entry, inside single quotes. Store the literal value; do not put a fresh random generation call in the configuration, since the key must stay the same across requests. Do not share or commit this private file.
 
 If the loaded value still differs from the file you edited, confirm you edited the domain's actual deployed folder and that no later duplicate `app_key` entry overrides it. If necessary, restart PHP or clear its opcode cache through your hosting controls after saving.
+
+## Download and restore the member register
+
+Use **Members → Download members CSV**, or the same button beside the reset controls, to download all registered members regardless of search filters, pagination, or election phase. This download is restricted to signed-in administrators. It includes first name, last name, middle initial, email, School, and Position.
+
+After an Everything reset, upload the downloaded file through **Members → Import a CSV**. A Voting only reset or Nominations and votes reset already preserves members. This backup restores member profiles, not nominations, votes, or results.
+
+The export includes an assembly_backup_version column so the importer can reverse spreadsheet-safety escaping and restore the original text, including leading apostrophes. Keep that column intact. Existing ordinary CSV templates still work. The usual import limits apply: up to 5,000 members and 2 MB per upload; split larger registers into files retaining the header before importing.

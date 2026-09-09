@@ -11,7 +11,7 @@ function check(bool $ok,string $label): void { global $checks; if(!$ok) throw ne
 function request(string $session,string $path,array $data=[]): array {
     global $base,$folder;
     $c=curl_init($base.'/'.$path); curl_setopt_array($c,[CURLOPT_RETURNTRANSFER=>true,CURLOPT_FOLLOWLOCATION=>true,CURLOPT_COOKIEJAR=>$folder.'/'.$session.'.cookies',CURLOPT_COOKIEFILE=>$folder.'/'.$session.'.cookies',CURLOPT_TIMEOUT=>20]);
-    if($data) { curl_setopt($c,CURLOPT_POST,true); curl_setopt($c,CURLOPT_POSTFIELDS,http_build_query($data)); }
+    if($data) { curl_setopt($c,CURLOPT_POST,true); curl_setopt($c,CURLOPT_POSTFIELDS,count(array_filter($data,fn($value)=>$value instanceof CURLFile)) ? $data : http_build_query($data)); }
     $body=curl_exec($c); $status=curl_getinfo($c,CURLINFO_RESPONSE_CODE); $error=curl_error($c); curl_close($c);
     if($body===false) throw new RuntimeException($error); return [$status,$body];
 }
@@ -44,6 +44,7 @@ try {
     $pdo->exec("USE `$dbName`");
     [, $html]=request('outsider','index.php?page=members'); check(str_contains($html,'Welcome back'),'Unauthenticated admin pages redirect to login');
     [, $html]=request('outsider','index.php?page=export'); check(str_contains($html,'Welcome back'),'Exports require admin authentication');
+    [, $html]=request('outsider','index.php?page=export_members'); check(str_contains($html,'Welcome back'),'Member backup requires admin authentication');
     [, $html]=request('outsider','index.php?page=qr'); check(str_contains($html,'Welcome back'),'Admin QR endpoint requires authentication');
     [, $html]=request('admin','index.php?page=settings',['csrf'=>'invalid','action'=>'settings','title'=>'Tampered']); check(str_contains($html,'Your session expired'),'HTTP CSRF failure rejects change');
     post('admin','index.php?page=settings',['action'=>'settings','title'=>'Test Officer Election','nomination_limit'=>'2','vote_limit'=>'1','officer_count'=>'1']);
@@ -98,6 +99,25 @@ try {
     check($pdo->query('SELECT phase FROM elections')->fetchColumn()==='review' && (int)$pdo->query("SELECT COUNT(*) FROM submissions WHERE stage='voting'")->fetchColumn()===0,'HTTP reset deletes votes and returns to review');
     post('admin','index.php?page=settings',['action'=>'logout']);
     [, $html]=post('admin','index.php?page=login',['action'=>'login','email'=>'admin@example.test','password'=>$password]); check(str_contains($html,'Election overview'),'Admin can sign out and sign back in');
+    $special=$pdo->prepare('UPDATE members SET first_name=?,school=?,position=? WHERE id=?');
+    $special->execute(['Niño "Alex"','=SUM(1,2)',"'Principal",$a]);
+    $fields='first_name,last_name,middle_initial,email,school,position';
+    $original=$pdo->query('SELECT '.$fields.' FROM members ORDER BY email')->fetchAll(PDO::FETCH_ASSOC);
+    [, $backup]=request('admin','index.php?page=export_members&q=nonexistent&p=999');
+    check(str_contains($backup,'assembly_backup_version') && str_contains($backup,'ana@example.test') && str_contains($backup,'cara@example.test'),'Member backup exports all profiles despite filters and pagination');
+    check(str_contains($backup,"'=SUM") && str_contains($backup,"''Principal"),'Backup escapes formulas and apostrophes reversibly');
+    file_put_contents($folder.'/members-backup.csv',$backup);
+    $pdo->exec('DELETE FROM rate_limits');
+    post('admin','index.php?page=settings',['action'=>'request_reset','scope'=>'all','password'=>$password]);
+    post('admin','index.php?page=settings',['action'=>'confirm_reset','code'=>lastCode(),'confirmation'=>'RESET']);
+    check((int)$pdo->query('SELECT COUNT(*) FROM members')->fetchColumn()===0,'Full reset clears members before restore');
+    [, $emptyBackup]=request('admin','index.php?page=export_members');
+    check(count(preg_split('/\r?\n/',trim($emptyBackup)))===1,'Empty register downloads a CSV header');
+    [, $html]=post('admin','index.php?page=members',['action'=>'import_csv','csv'=>new CURLFile($folder.'/members-backup.csv','text/csv','members-backup.csv')]);
+    check(str_contains($html,'Import complete: 3 added, 0 duplicate emails skipped.'),'Downloaded backup is accepted by the CSV upload');
+    $restored=$pdo->query('SELECT '.$fields.' FROM members ORDER BY email')->fetchAll(PDO::FETCH_ASSOC);
+    check($restored===$original,'Full reset and CSV restore preserve all profile fields including Unicode, quotes, and formula-like text');
+    check(str_contains($html,'Download members CSV'),'Member directory exposes backup download');
     [, $html]=request('outsider','setup.php'); check(str_contains($html,'Welcome back'),'Installer locks after first administrator');
     $log=is_file($folder.'/storage/error.log')?file_get_contents($folder.'/storage/error.log'):'';
     check($log==='', 'No application warnings or errors during HTTP workflow');

@@ -128,7 +128,7 @@ function parseCsv(string $path): array {
             $line++; if ($row === [null]) continue;
             if (count($rows)>=5000) throw new DomainException('Upload at most 5,000 members at a time.');
             if (count($row)!==count($header)) throw new DomainException("CSV row $line has the wrong number of fields.");
-            try { $rows[]=memberInput(array_combine($header,$row)); } catch (DomainException $e) { throw new DomainException("CSV row $line: " . $e->getMessage()); }
+            try { $rows[]=memberInput(decodeMemberBackup(array_combine($header,$row))); } catch (DomainException $e) { throw new DomainException("CSV row $line: " . $e->getMessage()); }
         }
         if (!$rows) throw new DomainException('The CSV contains no members.'); return $rows;
     } finally { fclose($f); }
@@ -216,4 +216,17 @@ function updateMemberProfile(int $id, array $input): void {
 
 function csvText(string $value): string {
     return preg_match('/^[=+@\-\t\r]/', $value) ? "'".$value : $value;
+}
+
+function memberBackupText(string $value): string {
+    // Escape spreadsheet formulas and leading apostrophes reversibly for re-import.
+    return preg_match("/^[=+@\\-']/", $value) ? "'".$value : $value;
+}
+function decodeMemberBackup(array $record): array {
+    if (!array_key_exists('assembly_backup_version', $record)) return $record;
+    if ($record['assembly_backup_version'] !== '1') throw new DomainException('Unsupported member backup version.');
+    foreach (['first_name','last_name','middle_initial','email','school','position'] as $field) {
+        if (isset($record[$field]) && str_starts_with($record[$field], "'")) $record[$field] = substr($record[$field], 1);
+    }
+    return $record;
 }
