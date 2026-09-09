@@ -2,4 +2,6 @@
 
 .profile-details{display:block;color:var(--muted);font-size:.875rem;font-weight:400;margin-top:4px}.member-cell:has(.profile-details){flex-wrap:wrap}.member-cell>.profile-details{flex-basis:100%;margin-left:45px}.profile-editor{display:grid;gap:8px;min-width:200px;max-width:300px}.profile-editor .btn{justify-self:start}
 
-.brand-wordmark{display:inline-flex;flex-direction:column;gap:5px;line-height:1;white-space:nowrap}.brand-wordmark small{font-size:.8rem;font-weight:500;letter-spacing:.2px;line-height:1.2}.brand .brand-wordmark small{color:#c4d89f}.brand-dark .brand-wordmark small,.mobile-brand .brand-wordmark small{color:var(--green)}.mobile-brand .brand-wordmark{gap:6px}
+.brand-wordmark{display:inline-flex;flex-direction:column;gap:5px;line-height:1;white-space:nowrap}.brand-wordmark sub{position:static;display:block;align-self:flex-end;font-size:.75rem;font-weight:400;letter-spacing:0;line-height:1.2}.brand .brand-wordmark sub{color:#c4d89f}.brand-dark .brand-wordmark sub,.mobile-brand .brand-wordmark sub{color:var(--green)}.mobile-brand .brand-wordmark{gap:6px}
+
+.auth-brand-label .brand-wordmark>span{font-size:1.125rem;font-weight:650;letter-spacing:0}.auth-brand-label .brand-wordmark sub{color:var(--muted)}
