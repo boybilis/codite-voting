@@ -58,8 +58,14 @@ try {
     $nom='index.php?page=participate&stage=nomination';
     [, $html]=request('member',$nom); check(str_contains($html,'Verify your membership') && !str_contains($html,'Ana A. Member'),'Candidate names are hidden before verification');
     [, $html]=post('member',$nom,['action'=>'submit_ballot','candidates'=>[$b]]); check(str_contains($html,'verification expired'),'Unverified direct ballot submission is rejected');
-    [, $html]=post('unknown',$nom,['action'=>'request_otp','email'=>'unknown@example.test']); check(str_contains($html,'If this email is registered'),'Unregistered email gets generic OTP response');
+    [, $html]=post('unknown',$nom,['action'=>'request_otp','email'=>'unknown@example.test']); check(str_contains($html,'This email is not registered. Please contact your administrator.'),'Unregistered email shows membership error');
+    check(str_contains($html,'name="email"') && !str_contains($html,'name="code"'),'Unregistered member stays on email entry without OTP input');
     check((int)$pdo->query('SELECT COUNT(*) FROM otp_challenges')->fetchColumn()===0,'Unknown members receive no OTP');
+    post('stale',$nom,['action'=>'request_otp','email'=>'ben@example.test']);
+    [, $html]=post('stale',$nom,['action'=>'request_otp','email'=>'unknown@example.test']);
+    check(str_contains($html,'This email is not registered') && !str_contains($html,'name="code"'),'Unknown email clears an earlier OTP screen');
+    [, $html]=post('stale',$nom,['action'=>'verify_otp','code'=>lastCode()]);
+    check(str_contains($html,'Request a new verification code.'),'Cleared OTP challenge cannot be used');
     post('member',$nom,['action'=>'request_otp','email'=>'ana@example.test']); $code=lastCode();
     [, $html]=post('member',$nom,['action'=>'verify_otp','code'=>$code]); check(str_contains($html,'Who would you like to nominate?'),'Email OTP unlocks nomination ballot');
     check(str_contains($html,'Central School') && str_contains($html,'Principal'),'Member ballot displays School and Position');
@@ -74,6 +80,8 @@ try {
     post('admin','index.php?page=nominations',['action'=>'decision','member_id'=>$c,'decision'=>'denied']);
     post('admin','index.php?page=voting',['action'=>'phase','next'=>'voting']);
     $vote='index.php?page=participate&stage=voting';
+    [, $html]=post('unknown',$vote,['action'=>'request_otp','email'=>'unknown@example.test']);
+    check(str_contains($html,'This email is not registered') && !str_contains($html,'name="code"'),'Voting also rejects unregistered email before OTP');
     [, $html]=request('member',$vote); check(str_contains($html,'Verify your membership'),'Voting requires a fresh email verification');
     $pdo->exec('DELETE FROM rate_limits');
     post('member',$vote,['action'=>'request_otp','email'=>'ana@example.test']);

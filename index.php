@@ -35,11 +35,15 @@ if($_SERVER['REQUEST_METHOD']==='POST') {
                 $email=strtolower(trim((string)($_POST['email']??'')));
                 if(!filter_var($email,FILTER_VALIDATE_EMAIL) || strlen($email)>254) throw new DomainException('Enter a valid email address.');
                 $m=one('SELECT * FROM members WHERE email=? AND active=1',[$email]);
+                if (!$m) {
+                    unset($_SESSION['challenge'], $_SESSION['verified']);
+                    throw new DomainException('This email is not registered. Please contact your administrator.');
+                }
                 $context=session_id().':'.$el['generation'].':'.$stage;
-                $id=$m ? issueOtp($email,$stage,$context) : bin2hex(random_bytes(16));
+                $id=issueOtp($email,$stage,$context);
                 $_SESSION['challenge']=['id'=>$id,'email'=>$email,'stage'=>$stage,'generation'=>(int)$el['generation'],'context'=>$context];
                 unset($_SESSION['verified']);
-                flash('If this email is registered, a verification code has been sent. Check your inbox and spam folder.');
+                flash('A verification code has been sent to your registered email. Check your inbox and spam folder.');
             } elseif($action==='verify_otp') {
                 rateLimit('verify-ip:'.($_SERVER['REMOTE_ADDR']??''),(int)(config()['rate_limits']['verification_ip_per_15min']??1000),900);
                 $c=$_SESSION['challenge']??null;
