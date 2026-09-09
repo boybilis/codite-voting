@@ -20,7 +20,7 @@ The local configuration uses `mail.transport = log`. It does **not** send real e
 1. **Settings:** Choose an election title, maximum nominees per member, maximum votes per member, and number of officer positions. These are separate limits from 1 to 100. They lock once nominations open.
 2. **Members:** Add first name, last name, optional middle initial, email, School, and Position individually, or import a CSV. Duplicate emails are skipped without overwriting existing members. The register can be expanded through the nomination phase and locks afterward.
 3. **Open nominations:** Share the nomination link or download its QR code. Emails not in the active member register display "This email is not registered. Please contact your administrator." and remain on the email-entry page. Registered members verify a six-digit email code, select between one and the configured maximum number of members, and submit once. Self-nomination is allowed.
-4. **Close nominations:** The app enters nominee review. The admin contacts each nominee, then records **Accepted** or **Denied** in the action dropdown. Pending responses block voting.
+4. **Close nominations:** The app enters nominee review and queues a private invitation email for every nominated member. Each nominee opens their link and confirms **Accept nomination** or **Decline nomination**. Acceptance automatically adds them to the official voting candidates. The admin can still record a confirmed response manually. Pending responses block voting.
 5. **Open voting:** At least one nominee must accept. Share the separate voting QR/link. Members verify their email again. Only accepted nominees appear, and each member can submit one voting ballot with up to the configured number of selections.
 6. **Close voting:** Results change from provisional to final. The top candidates with positive vote totals are marked elected up to the configured officer count. A tie across the last available position is flagged for administrator resolution under the organization's rules; tied candidates are not arbitrarily declared elected. This app does not automate a runoff. Fewer positive-vote candidates than positions leaves vacancies.
 7. **Export:** Download nomination and voting tallies as CSV. Live tallies and exports are admin-only. Refresh a tally page to obtain current counts.
@@ -139,3 +139,29 @@ Use **Members → Download members CSV**, or the same button beside the reset co
 After an Everything reset, upload the downloaded file through **Members → Import a CSV**. A Voting only reset or Nominations and votes reset already preserves members. This backup restores member profiles, not nominations, votes, or results.
 
 The export includes an assembly_backup_version column so the importer can reverse spreadsheet-safety escaping and restore the original text, including leading apostrophes. Keep that column intact. Existing ordinary CSV templates still work. The usual import limits apply: up to 5,000 members and 2 MB per upload; split larger registers into files retaining the header before importing.
+
+## Automatic nomination invitations
+
+Closing nominations queues one email per nominated member for the current election round, even if a member was nominated multiple times. Sending starts immediately and the admin page automatically processes the remaining queue in small requests. Keep an admin page open until it reports completion. Use the Nomination tally's Invitation email column to inspect delivery status, or **Resend email** to send another invitation to a pending nominee.
+
+The private link opens a mobile-friendly confirmation page. **Accept nomination** saves Accepted immediately and places the member on the official voting candidate list; **Decline nomination** saves Denied. Merely opening the link never records a response, which prevents email-link scanners from making a choice. The link authenticates possession of the nominee's registered inbox, so another OTP is not required for this response. Regular voting still requires email OTP verification.
+
+Links expire after 14 days and stop accepting responses when voting opens. Resets invalidate all old links. Responses cannot be overwritten by replaying a link or bypassing the confirmation form. The admin may correct a recorded response during review. If the admin changes a response back to Pending, use Resend email to issue a fresh usable invitation.
+
+Failed emails stay visible for retry; a delivery problem does not reopen nominations or discard the queue. Sent means the SMTP server accepted the message, not guaranteed inbox delivery. Check mailbox credentials, sending quotas, and spam folders when needed. Retries normally reuse the same private link; resending an expired link replaces it. Mail delivery is at-least-once: a server interruption after SMTP accepts an email but before its status is saved can result in a duplicate invitation, but it cannot create a duplicate nominee or response.
+
+If nominations were already closed before this update, click **Send / retry pending invitations** once to queue invitations for undecided nominees.
+
+### Optional Hostinger background delivery
+
+To continue sending even after the administrator closes the browser, configure a Hostinger PHP cron job to run **bin/send-invitations.php** every minute. Use the actual absolute path of your deployed script and a PHP 8.2+ interpreter, for example:
+
+```text
+php /absolute/path/to/your/site/bin/send-invitations.php
+```
+
+The worker is included in the Hostinger ZIP. It only runs from the command line, reads the existing private SMTP/database configuration, and processes queued invitations with a 45-second budget per run (an in-progress SMTP attempt may take longer). It shares claims with the browser sender so two workers do not normally send the same job concurrently. Failed emails require the admin's retry action; this prevents repeated automatic failures from exhausting mailbox quotas.
+
+The cron job and actual Hostinger SMTP delivery must be configured/tested in your hosting account. Without the cron job, queued sending continues while an admin page is open and resumes when an admin reopens the application.
+
+This update automatically creates the nominee_invitations table on an existing installation. The configured database account needs CREATE permission for this upgrade; existing membership and election data are retained.

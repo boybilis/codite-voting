@@ -53,3 +53,4 @@
   .member-header .verified-label{margin-left:auto}
 }
 @media(max-height:500px){.ballot-submit{position:static}}
+.nominee-response-actions{display:flex;flex-direction:column;gap:12px}.nominee-response-actions .btn{width:100%}[data-invitation-queue] .d-flex>*{min-width:0;max-width:100%}@media(max-width:560px){[data-invitation-queue] form,[data-invitation-queue] form .btn{width:100%}}

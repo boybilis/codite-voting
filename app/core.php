@@ -59,10 +59,13 @@ function rateLimit(string $key, int $limit, int $seconds): void {
     if (!$allowed) throw new DomainException('Too many attempts. Please wait before trying again.');
 }
 function sendCode(string $email, string $code, string $purpose): void {
-    $c = config(); $m = $c['mail'];
     $body = "Your ".siteName()." verification code is: $code\n\nPurpose: $purpose\nThis code expires in 10 minutes. Do not share it. If you did not request it, ignore this message.";
+    sendEmail($email, siteName().": your $purpose verification code", $body);
+}
+function sendEmail(string $email, string $subject, string $body): void {
+    $c = config(); $m = $c['mail'];
     if ($m['transport'] === 'log' && $c['environment'] === 'local') {
-        file_put_contents(__DIR__ . '/../storage/mail.log', gmdate('c') . " To: $email\n$body\n\n", FILE_APPEND | LOCK_EX); return;
+        if (file_put_contents(__DIR__ . '/../storage/mail.log', gmdate('c') . " To: $email\nSubject: $subject\n$body\n\n", FILE_APPEND | LOCK_EX) === false) throw new RuntimeException('Cannot write local mail log.'); return;
     }
     if ($m['transport'] !== 'smtp') throw new RuntimeException('Invalid mail transport.');
     $mail = new PHPMailer\PHPMailer\PHPMailer(true);
@@ -71,7 +74,7 @@ function sendCode(string $email, string $code, string $purpose): void {
     $mail->SMTPSecure = $m['encryption'] === 'ssl' ? PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_SMTPS : PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
     $mail->Timeout = 15; $mail->CharSet = 'UTF-8';
     $mail->setFrom($m['from_email'], siteName()); $mail->addAddress($email);
-    $mail->Subject = siteName().": your $purpose verification code"; $mail->Body = $body; $mail->send();
+    $mail->Subject = $subject; $mail->Body = $body; $mail->send();
 }
 function issueOtp(string $email, string $purpose, string $context): string {
     rateLimit('otp-email:' . $email, 5, 3600);
@@ -177,7 +180,9 @@ function changePhase(string $next): void {
             if (!$rows || array_filter($rows,fn($r)=>$r['decision']==='pending')) throw new DomainException('Accept or deny every nominee before opening voting.');
             if (!array_filter($rows,fn($r)=>$r['decision']==='accepted')) throw new DomainException('At least one nominee must accept before voting opens.');
         }
-        query('UPDATE elections SET phase=? WHERE id=1',[$next]); audit('phase_changed',['from'=>$el['phase'],'to'=>$next]);
+        query('UPDATE elections SET phase=? WHERE id=1',[$next]);
+        if ($next === 'review') queueNomineeInvitations($el);
+        audit('phase_changed',['from'=>$el['phase'],'to'=>$next]);
     });
 }
 function decideNominee(int $id, string $decision): void {
@@ -194,6 +199,7 @@ function resetElection(string $scope, int $generation): void {
         if((int)$el['generation']!==$generation) throw new DomainException('The election changed. Request a new reset code.');
         if(!in_array($scope,['votes','election','all'],true)) throw new DomainException('Invalid reset scope.');
         if($scope==='votes' && !in_array($el['phase'],['voting','closed'],true)) throw new DomainException('Voting can only be reset after voting has opened.');
+        query('DELETE FROM nominee_invitations');
         query("DELETE FROM submissions" . ($scope==='votes'?" WHERE stage='voting'":''));
         if($scope!=='votes') query('DELETE FROM nominee_decisions');
         if($scope==='all') query('DELETE FROM members');
@@ -230,3 +236,5 @@ function decodeMemberBackup(array $record): array {
     }
     return $record;
 }
+
+require_once __DIR__.'/invitations.php';

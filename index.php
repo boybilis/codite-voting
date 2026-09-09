@@ -2,7 +2,7 @@
 require __DIR__.'/app/bootstrap.php';
 require __DIR__.'/app/views.php';
 $page=(string)($_GET['page']??'dashboard');
-$public=['login','participate'];
+$public=['login','participate','nominee_response'];
 try {
     $installed = (bool)one('SELECT id FROM admins LIMIT 1');
 } catch (PDOException $error) {
@@ -11,6 +11,18 @@ try {
 }
 if (!$installed) redirect('setup.php');
 if(!in_array($page,$public,true)) requireAdmin();
+if ($page==='nominee_response' && isset($_GET['token'])) {
+    $_SESSION['nominee_token']=is_string($_GET['token']) ? $_GET['token'] : '';
+    header('Referrer-Policy: no-referrer');
+    redirect('index.php?page=nominee_response');
+}
+if ($page==='send_invitations') {
+    header('Content-Type: application/json; charset=utf-8');
+    if ($_SERVER['REQUEST_METHOD']!=='POST') { http_response_code(405); header('Allow: POST'); echo json_encode(['error'=>'Use POST.']); exit; }
+    try { checkCsrf(); echo json_encode(processNomineeInvitation(),JSON_THROW_ON_ERROR); }
+    catch (Throwable $error) { error_log((string)$error); http_response_code(400); echo json_encode(['error'=>'Unable to send invitations. Refresh or check the application log.']); }
+    exit;
+}
 if($_SERVER['REQUEST_METHOD']==='POST') {
     try {
         checkCsrf();
@@ -24,6 +36,10 @@ if($_SERVER['REQUEST_METHOD']==='POST') {
             if(!$a || !password_verify((string)($_POST['password']??''),$a['password_hash'])) throw new DomainException('Email or password is incorrect.');
             session_regenerate_id(true); $_SESSION['admin_id']=$a['id']; $_SESSION['csrf']=bin2hex(random_bytes(32));
             audit('admin_login'); redirect('index.php');
+         } elseif ($page==='nominee_response') {
+            if ($action!=='nominee_decision') throw new DomainException('Unknown action.');
+            respondToNomination((string)($_SESSION['nominee_token']??''),(string)($_POST['decision']??''));
+            flash('Thank you. Your nomination response has been recorded.');
         } elseif($page==='participate') {
             $stage=(string)($_GET['stage']??'nomination');
             if(!in_array($stage,['nomination','voting'],true)) throw new DomainException('Invalid ballot.');
@@ -81,7 +97,18 @@ if($_SERVER['REQUEST_METHOD']==='POST') {
                         foreach(['nomination_limit','vote_limit','officer_count'] as $key) { $n=filter_var($_POST[$key]??null,FILTER_VALIDATE_INT); if($n===false || $n<1 || $n>100) throw new DomainException('Limits must be whole numbers from 1 to 100.'); $values[]=$n; }
                         query('UPDATE elections SET title=?,nomination_limit=?,vote_limit=?,officer_count=? WHERE id=1',array_merge([$title],$values)); audit('settings_updated');
                     }); flash('Election settings saved.'); break;
-                case 'phase': changePhase((string)($_POST['next']??'')); flash('Election phase updated.'); break;
+                case 'phase':
+                    $next=(string)($_POST['next']??''); changePhase($next);
+                    if ($next==='review') {
+                        processNomineeInvitation();
+                        flash('Nominations are closed. Invitation emails are being sent to each nominee.');
+                    } else flash('Election phase updated.');
+                    break;
+                case 'retry_invitations':
+                    rateLimit('invitation-retry:'.$a['id'],1,60); retryNomineeInvitations();
+                    flash('Pending invitation emails are queued. Keep this page open while they send.'); break;
+                case 'resend_invitation':
+                    resendNomineeInvitation((int)($_POST['member_id']??0)); flash('Nominee invitation queued for sending.'); break;
                 case 'decision': decideNominee((int)($_POST['member_id']??0),(string)($_POST['decision']??'')); flash('Nominee response saved.'); break;
                 case 'request_reset':
                     rateLimit('reset-admin:'.$a['id'],5,900);
@@ -136,7 +163,8 @@ if($page==='qr') {
     $result=(new Endroid\QrCode\Writer\SvgWriter())->write($qr);
     header('Content-Type: image/svg+xml'); if(isset($_GET['download'])) header('Content-Disposition: attachment; filename="'.$stage.'-qr.svg"'); echo $result->getString(); exit;
 }
-if($page==='login') renderLogin();
+if($page==='nominee_response') renderNomineeResponse();
+elseif($page==='login') renderLogin();
 elseif($page==='participate') renderMember((string)($_GET['stage']??'nomination'));
 elseif(in_array($page,['dashboard','members','nominations','voting','results','settings','audit'],true)) renderAdmin($page);
 else { http_response_code(404); renderAdmin('not-found'); }

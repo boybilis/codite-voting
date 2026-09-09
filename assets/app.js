@@ -47,3 +47,33 @@ if (ballot) {
     document.getElementById('no-search-results').classList.toggle('d-none', visible > 0);
   });
 }
+
+const invitationQueue = document.querySelector('[data-invitation-queue]');
+if (invitationQueue && Number(invitationQueue.dataset.pending) > 0) {
+  const status = invitationQueue.querySelector('[data-queue-status]');
+  const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
+  (async () => {
+    while (invitationQueue.isConnected) {
+      try {
+        const response = await fetch(invitationQueue.dataset.endpoint, {
+          method: 'POST', credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({ csrf: invitationQueue.dataset.csrf })
+        });
+        if (!response.ok) throw new Error('Request failed');
+        const result = await response.json();
+        if (!result.queue) throw new Error('Session expired');
+        const remaining = result.queue.queued + result.queue.sending;
+        const failed = result.queue.failed;
+        status.textContent = remaining
+          ? `Sending invitations: ${remaining} remaining${failed ? `, ${failed} failed` : ''}. Keep this page open.`
+          : (failed ? `${failed} invitation(s) could not be sent. Check your email settings, then retry.` : 'Invitation sending is complete. Refresh the nomination tally to see the latest responses.');
+        if (remaining === 0) break;
+        await pause(result.outcome === 'idle' ? 5000 : 300);
+      } catch {
+        status.textContent = 'Invitation sending paused. Refresh this page to resume. Pending emails remain queued.';
+        break;
+      }
+    }
+  })();
+}
