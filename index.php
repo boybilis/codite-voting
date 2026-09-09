@@ -3,7 +3,13 @@ require __DIR__.'/app/bootstrap.php';
 require __DIR__.'/app/views.php';
 $page=(string)($_GET['page']??'dashboard');
 $public=['login','participate'];
-if(!one('SELECT id FROM admins LIMIT 1')) redirect('setup.php');
+try {
+    $installed = (bool)one('SELECT id FROM admins LIMIT 1');
+} catch (PDOException $error) {
+    if ($error->getCode() !== '42S02') throw $error;
+    $installed = false; // An empty database must reach setup before tables exist.
+}
+if (!$installed) redirect('setup.php');
 if(!in_array($page,$public,true)) requireAdmin();
 if($_SERVER['REQUEST_METHOD']==='POST') {
     try {

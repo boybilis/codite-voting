@@ -35,6 +35,8 @@ try {
     $process=proc_open([PHP_BINARY,'-S','127.0.0.1:'.$port,'-t',$folder,$folder.'/router.php'],[0=>['pipe','r'],1=>['file',$folder.'/server.log','a'],2=>['file',$folder.'/server.log','a']],$pipes,$folder,null,['bypass_shell'=>true,'create_no_window'=>true]);
     if(!is_resource($process)) throw new RuntimeException('Cannot start HTTP test server'); fclose($pipes[0]);
     for($i=0;$i<30;$i++) { try { request('admin','setup.php'); break; } catch(RuntimeException $e) { usleep(100000); } }
+    [$status,$html]=request('fresh','index.php');
+    check($status===200 && str_contains($html,'Set up your election'),'Empty database homepage redirects to setup');
     $password=bin2hex(random_bytes(12));
     [$status,$html]=post('admin','setup.php',['setup_key'=>$config['setup_key'],'name'=>'Test Administrator','email'=>'admin@example.test','password'=>$password,'password_confirm'=>$password]);
     check($status===200 && str_contains($html,'Election overview'),'Installer creates admin and opens dashboard');
