@@ -1,0 +1,6 @@
+CREATE TABLE IF NOT EXISTS member_photos (
+ member_id BIGINT UNSIGNED PRIMARY KEY,
+ mime_type VARCHAR(32) NOT NULL,
+ image_data MEDIUMBLOB NOT NULL,
+ FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

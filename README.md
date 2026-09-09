@@ -165,3 +165,6 @@ The worker is included in the Hostinger ZIP. It only runs from the command line,
 The cron job and actual Hostinger SMTP delivery must be configured/tested in your hosting account. Without the cron job, queued sending continues while an admin page is open and resumes when an admin reopens the application.
 
 This update automatically creates the nominee_invitations table on an existing installation. The configured database account needs CREATE permission for this upgrade; existing membership and election data are retained.
+
+### Nominee profile pictures
+Nominees must upload a JPG, PNG, or WebP picture when accepting by email link (maximum 2 MB, 4096 pixels per side). Declining does not require a picture. Verified voters see pictures beside accepted candidates. Photos are stored privately in MySQL; the upgrade automatically creates the photo table. PHP fileinfo must be enabled, and upload_max_filesize must be at least 2M with post_max_size greater than 2M. A full member reset removes photos. CSV backups contain text profiles only; photos require a database backup or a fresh upload in the next nomination round. Existing manually accepted candidates remain eligible without a picture.

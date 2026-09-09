@@ -6,6 +6,7 @@ function migrateMemberProfiles(): void {
     if (!one("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='nominee_invitations'")) {
         db()->exec(file_get_contents(__DIR__.'/invitation-schema.sql'));
     }
+    if (!one("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='member_photos'")) db()->exec(file_get_contents(__DIR__.'/photo-schema.sql'));
     foreach (['school'=>160, 'position'=>120] as $column=>$length) {
         if (in_array($column, $columns, true)) continue;
         try { db()->exec("ALTER TABLE members ADD COLUMN $column VARCHAR($length) NOT NULL DEFAULT ''"); }

@@ -28,7 +28,7 @@ try {
     mkdir($folder); mkdir($folder.'/app'); mkdir($folder.'/storage'); mkdir($folder.'/vendor'); mkdir($folder.'/assets');
     foreach(['app.css','app.js','bootstrap.min.css','bootstrap.bundle.min.js'] as $asset) copy($root.'/assets/'.$asset,$folder.'/assets/'.$asset);
     foreach(['index.php','setup.php'] as $f) copy($root.'/'.$f,$folder.'/'.$f);
-    foreach(['core.php','bootstrap.php','views.php','migrations.php','site.php','invitations.php','invitation-schema.sql','schema.sql'] as $f) copy($root.'/app/'.$f,$folder.'/app/'.$f);
+    foreach(['core.php','bootstrap.php','views.php','migrations.php','site.php','invitations.php','invitation-schema.sql','photo-schema.sql','schema.sql'] as $f) copy($root.'/app/'.$f,$folder.'/app/'.$f);
     file_put_contents($folder.'/vendor/autoload.php',"<?php require ".var_export($root.'/vendor/autoload.php',true).";");
     $config['base_url']=$base; $config['db']['name']=$dbName; $config['setup_key']=bin2hex(random_bytes(24)); $config['mail']['transport']='log';
     file_put_contents($folder.'/config.local.php',"<?php return ".var_export($config,true).";");
@@ -111,6 +111,13 @@ try {
     check(str_contains($html,'Your session expired'),'Nominee response requires valid CSRF');
     $nomineeCsrf=token($html);
     [, $html]=post('nominee_b','index.php?page=nominee_response',['action'=>'nominee_decision','decision'=>'accepted']);
+    check(str_contains($html,'Please upload your profile picture'),'Acceptance requires a picture');
+    $badPicture=$folder.'/fake.jpg'; file_put_contents($badPicture,'<svg xmlns="http://www.w3.org/2000/svg"></svg>');
+    [, $html]=post('nominee_b','index.php?page=nominee_response',['action'=>'nominee_decision','decision'=>'accepted','profile_photo'=>new CURLFile($badPicture,'image/jpeg','fake.jpg')]);
+    check(str_contains($html,'Upload a valid JPG'),'Disguised non-photo uploads are rejected');
+    check((int)$pdo->query('SELECT COUNT(*) FROM member_photos')->fetchColumn()===0 && (int)$pdo->query('SELECT COUNT(*) FROM nominee_decisions')->fetchColumn()===0,'Rejected photo leaves nomination and photos unchanged');
+    $picture=$folder.'/profile.png'; file_put_contents($picture,base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII='));
+    [, $html]=post('nominee_b','index.php?page=nominee_response',['action'=>'nominee_decision','decision'=>'accepted','profile_photo'=>new CURLFile($picture,'image/png','profile.png')]);
     check(str_contains($html,'You are an official nominee'),'Nominee accepts directly from email link');
     check($pdo->query('SELECT decision FROM nominee_decisions WHERE member_id='.(int)$b)->fetchColumn()==='accepted','Email acceptance immediately records an official candidate');
     [, $html]=request('nominee_b','index.php?page=nominee_response',['csrf'=>$nomineeCsrf,'action'=>'nominee_decision','decision'=>'denied']);
@@ -132,6 +139,11 @@ try {
     $pdo->exec('DELETE FROM rate_limits');
     post('member',$vote,['action'=>'request_otp','email'=>'ana@example.test']);
     [, $html]=post('member',$vote,['action'=>'verify_otp','code'=>lastCode()]); check(str_contains($html,'Ben A. Member') && !str_contains($html,'Cara A. Member'),'Voting ballot exposes accepted candidates only');
+    check(str_contains($html,'class="candidate-photo"'),'Ballot includes nominee picture');
+    [$status,$bytes]=request('member','index.php?page=candidate_photo&id='.$b);
+    check($status===200 && $bytes===file_get_contents($picture),'Verified voter receives the uploaded photo');
+    [$status]=request('anonymous_photo','index.php?page=candidate_photo&id='.$b);
+    check($status===404,'Anonymous visitors cannot retrieve nominee photos');
     [, $html]=post('member',$vote,['action'=>'submit_ballot','candidates'=>[$b]]); check(str_contains($html,'Your vote is recorded'),'Voting submission reaches success page');
     post('admin','index.php?page=voting',['action'=>'phase','next'=>'closed']);
     [, $html]=request('admin','index.php?page=results'); check(str_contains($html,'Final results') && str_contains($html,'Elected'),'Final result shows elected officer');
@@ -161,6 +173,7 @@ try {
     [, $emptyBackup]=request('admin','index.php?page=export_members');
     check(count(preg_split('/\r?\n/',trim($emptyBackup)))===1,'Empty register downloads a CSV header');
     [, $html]=post('admin','index.php?page=members',['action'=>'import_csv','csv'=>new CURLFile($folder.'/members-backup.csv','text/csv','members-backup.csv')]);
+    check((int)$pdo->query('SELECT COUNT(*) FROM member_photos')->fetchColumn()===0,'Full reset removes stored pictures');
     check(str_contains($html,'Import complete: 3 added, 0 duplicate emails skipped.'),'Downloaded backup is accepted by the CSV upload');
     $restored=$pdo->query('SELECT '.$fields.' FROM members ORDER BY email')->fetchAll(PDO::FETCH_ASSOC);
     check($restored===$original,'Full reset and CSV restore preserve all profile fields including Unicode, quotes, and formula-like text');

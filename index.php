@@ -2,7 +2,7 @@
 require __DIR__.'/app/bootstrap.php';
 require __DIR__.'/app/views.php';
 $page=(string)($_GET['page']??'dashboard');
-$public=['login','participate','nominee_response'];
+$public=['login','participate','nominee_response','candidate_photo'];
 try {
     $installed = (bool)one('SELECT id FROM admins LIMIT 1');
 } catch (PDOException $error) {
@@ -11,6 +11,14 @@ try {
 }
 if (!$installed) redirect('setup.php');
 if(!in_array($page,$public,true)) requireAdmin();
+if ($page==='candidate_photo') {
+    $el=election(); $v=$_SESSION['verified']??null;
+    $allowed=admin() || ($v && $v['expires']>=time() && $v['stage']==='voting' && $v['generation']===(int)$el['generation'] && $el['phase']==='voting' && one('SELECT id FROM members WHERE id=? AND active=1',[$v['member_id']]));
+    $photo=$allowed ? one("SELECT p.* FROM member_photos p JOIN nominee_decisions d ON d.member_id=p.member_id JOIN members m ON m.id=p.member_id WHERE p.member_id=? AND d.decision='accepted' AND m.active=1",[(int)($_GET['id']??0)]) : null;
+    if (!$photo) { http_response_code(404); exit; }
+    header('Content-Type: '.$photo['mime_type']); header('X-Content-Type-Options: nosniff');
+    header('Content-Length: '.strlen($photo['image_data'])); echo $photo['image_data']; exit;
+}
 if ($page==='nominee_response' && isset($_GET['token'])) {
     $_SESSION['nominee_token']=is_string($_GET['token']) ? $_GET['token'] : '';
     header('Referrer-Policy: no-referrer');
@@ -38,7 +46,7 @@ if($_SERVER['REQUEST_METHOD']==='POST') {
             audit('admin_login'); redirect('index.php');
          } elseif ($page==='nominee_response') {
             if ($action!=='nominee_decision') throw new DomainException('Unknown action.');
-            respondToNomination((string)($_SESSION['nominee_token']??''),(string)($_POST['decision']??''));
+            respondToNomination((string)($_SESSION['nominee_token']??''),(string)($_POST['decision']??''),$_FILES['profile_photo']??null);
             flash('Thank you. Your nomination response has been recorded.');
         } elseif($page==='participate') {
             $stage=(string)($_GET['stage']??'nomination');

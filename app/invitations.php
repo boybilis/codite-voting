@@ -19,15 +19,23 @@ function invitationForToken(string $token): ?array {
     if (!$row || !hash_equals(invitationToken($row),$token) || !$row['active'] || (int)$row['generation']!==(int)election()['generation'] || strtotime($row['expires_at'].' UTC')<=time()) return null;
     return $row;
 }
-function respondToNomination(string $token, string $decision): void {
+function respondToNomination(string $token, string $decision, ?array $photo=null): void {
     if (!in_array($decision,['accepted','denied'],true)) throw new DomainException('Choose Accept nomination or Decline nomination.');
-    transaction(function () use ($token,$decision) {
+    transaction(function () use ($token,$decision,$photo) {
         $el=election(true);
         if ($el['phase']!=='review') throw new DomainException('Nomination responses are closed. Please contact your administrator.');
         $invitation=invitationForToken($token);
         if (!$invitation) throw new DomainException('This invitation link is invalid or expired. Please contact your administrator.');
         if ($invitation['responded_at'] || $invitation['decision']!=='pending') throw new DomainException('Your response has already been recorded. Contact your administrator if it needs to change.');
         if (!one("SELECT c.candidate_id FROM choices c JOIN submissions s ON s.id=c.submission_id WHERE s.stage='nomination' AND c.candidate_id=? LIMIT 1",[$invitation['member_id']])) throw new DomainException('This nomination is no longer available.');
+        if ($decision==='accepted') {
+            if (!$photo || !isset($photo['error'],$photo['tmp_name']) || $photo['error']!==UPLOAD_ERR_OK || !is_string($photo['tmp_name']) || !is_uploaded_file($photo['tmp_name'])) throw new DomainException('Please upload your profile picture before accepting. Use JPG, PNG, or WebP up to 2 MB.');
+            $size=filesize($photo['tmp_name']);
+            $info=@getimagesize($photo['tmp_name']);
+            $mime=(new finfo(FILEINFO_MIME_TYPE))->file($photo['tmp_name']);
+            if (!$size || $size>2*1024*1024 || !$info || !in_array($mime,['image/jpeg','image/png','image/webp'],true) || $info['mime']!==$mime || $info[0]>4096 || $info[1]>4096) throw new DomainException('Upload a valid JPG, PNG, or WebP picture up to 2 MB and 4096 pixels per side.');
+            query('INSERT INTO member_photos (member_id,mime_type,image_data) VALUES (?,?,?) ON DUPLICATE KEY UPDATE mime_type=VALUES(mime_type),image_data=VALUES(image_data)',[$invitation['member_id'],$mime,file_get_contents($photo['tmp_name'])]);
+        }
         query('INSERT INTO nominee_decisions (member_id,decision) VALUES (?,?) ON DUPLICATE KEY UPDATE decision=VALUES(decision)',[$invitation['member_id'],$decision]);
         query('UPDATE nominee_invitations SET responded_at=UTC_TIMESTAMP() WHERE id=?',[$invitation['id']]);
         query('INSERT INTO audit_log (admin_id,action,details) VALUES (NULL,?,?)',['nominee_email_response',json_encode(['member_id'=>$invitation['member_id'],'decision'=>$decision,'generation'=>$el['generation']],JSON_THROW_ON_ERROR)]);
@@ -60,7 +68,7 @@ function processNomineeInvitation(): array {
     try {
         if (strtotime($job['expires_at'].' UTC')<=time()) throw new RuntimeException('Nominee invitation expired before sending.');
         $link=url('index.php?page=nominee_response&token='.invitationToken($job));
-        $body="Hello ".name($job).",\n\nYou have been nominated in ".$job['election_title'].".\n\nWould you like to accept your nomination and stand for election? Open your private response page to accept or decline:\n\n".$link."\n\nAccepting adds you to the official list of candidates for voting. Opening the link alone does not record a response.\n\nThis private link expires on ".$job['expires_at']." UTC, or when voting opens. Please do not forward it.\n\n".siteName();
+        $body="Hello ".name($job).",\n\nYou have been nominated in ".$job['election_title'].".\n\nWould you like to accept your nomination and stand for election? Open your private response page to accept or decline:\n\n".$link."\n\nUpload your profile picture when accepting so voters can recognize you. Accepting adds you to the official list of candidates for voting. Opening the link alone does not record a response.\n\nThis private link expires on ".$job['expires_at']." UTC, or when voting opens. Please do not forward it.\n\n".siteName();
         sendEmail($job['email'],siteName().': You have been nominated',$body);
     } catch (Throwable $error) {
         $outcome='failed';
