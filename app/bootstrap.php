@@ -9,7 +9,12 @@ if (!is_file(__DIR__.'/../config.local.php')) {
     http_response_code(503);
     exit('Assembly is not configured. Copy config.example.php to config.local.php, enter your database and mail settings, then visit setup.php. See README.md for setup instructions.');
 }
-if (strlen(config()['app_key']) < 32 || str_contains(config()['app_key'], 'REPLACE')) { http_response_code(503); exit('Set a random app_key in config.local.php before continuing.'); }
+header('Cache-Control: no-store, private');
+$keyError = appKeyError(config()['app_key'] ?? null);
+if ($keyError !== null) {
+    http_response_code(503);
+    exit(e($keyError).' Update config.local.php in this website folder (next to index.php), not config.example.php, then reload.');
+}
 require_once __DIR__ . '/../vendor/autoload.php';
 header('X-Content-Type-Options: nosniff');
 header('X-Frame-Options: DENY');

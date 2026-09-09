@@ -11,6 +11,12 @@ function config(): array {
     }
     return $config;
 }
+function appKeyError(mixed $key): ?string {
+    if (!is_string($key) || $key === '') return 'app_key is missing or is not a text value.';
+    if (str_contains($key, 'REPLACE')) return 'app_key still contains the placeholder text REPLACE. Replace the entire placeholder with your generated key.';
+    if (strlen($key) < 32) return 'app_key is present but is only '.strlen($key).' characters long. Use a randomly generated key of at least 32 characters (64 hexadecimal characters recommended).';
+    return null;
+}
 function db(): PDO {
     static $pdo;
     if (!$pdo) {

@@ -123,3 +123,11 @@ The production website is **https://voting.ibarakotech.com**. The canonical URL 
 - Voting: https://voting.ibarakotech.com/index.php?page=participate&stage=voting
 
 Deploy the latest main branch and download fresh QR codes if older codes were distributed. DNS, the Hostinger domain connection, and its HTTPS certificate are managed in your hosting account. Your SMTP sender must be an actual mailbox you control; the website domain does not create that mailbox.
+
+## Application key error
+
+The app reads `app_key` from the private `config.local.php` next to `index.php`. Editing `config.example.php` does not change an existing installation. A key must be a nonempty string, contain at least 32 characters, and no longer contain the template word REPLACE. The error explains which check failed without displaying the key.
+
+To generate a key once, run `php -r "echo bin2hex(random_bytes(32)), PHP_EOL;"` on a trusted machine or your hosting terminal. Paste the resulting 64-character value into the existing `app_key` entry, inside single quotes. Store the literal value; do not put a fresh random generation call in the configuration, since the key must stay the same across requests. Do not share or commit this private file.
+
+If the loaded value still differs from the file you edited, confirm you edited the domain's actual deployed folder and that no later duplicate `app_key` entry overrides it. If necessary, restart PHP or clear its opcode cache through your hosting controls after saving.
