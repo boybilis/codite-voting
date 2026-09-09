@@ -25,7 +25,8 @@ function cleanDirectory(string $path,string $allowed): void {
 }
 try {
     $pdo->exec("CREATE DATABASE `$dbName` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
-    mkdir($folder); mkdir($folder.'/app'); mkdir($folder.'/storage'); mkdir($folder.'/vendor');
+    mkdir($folder); mkdir($folder.'/app'); mkdir($folder.'/storage'); mkdir($folder.'/vendor'); mkdir($folder.'/assets');
+    foreach(['app.css','app.js','bootstrap.min.css','bootstrap.bundle.min.js'] as $asset) copy($root.'/assets/'.$asset,$folder.'/assets/'.$asset);
     foreach(['index.php','setup.php'] as $f) copy($root.'/'.$f,$folder.'/'.$f);
     foreach(['core.php','bootstrap.php','views.php','migrations.php','site.php','schema.sql'] as $f) copy($root.'/app/'.$f,$folder.'/app/'.$f);
     file_put_contents($folder.'/vendor/autoload.php',"<?php require ".var_export($root.'/vendor/autoload.php',true).";");

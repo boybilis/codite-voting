@@ -5,3 +5,51 @@
 .brand-wordmark{display:inline-flex;flex-direction:column;gap:5px;line-height:1;white-space:nowrap}.brand-wordmark sub{position:static;display:block;align-self:flex-end;font-size:.75rem;font-weight:400;letter-spacing:0;line-height:1.2}.brand .brand-wordmark sub{color:#c4d89f}.brand-dark .brand-wordmark sub,.mobile-brand .brand-wordmark sub{color:var(--green)}.mobile-brand .brand-wordmark{gap:6px}
 
 .auth-brand-label .brand-wordmark>span{font-size:1.125rem;font-weight:650;letter-spacing:0}.auth-brand-label .brand-wordmark sub{color:var(--muted)}
+
+/* Keep navigation and logout usable on short screens and at increased text sizes. */
+.sidebar{height:100vh;height:100dvh;overflow-y:auto;overflow-x:hidden;overscroll-behavior-y:contain;scrollbar-width:thin;scrollbar-color:#78998a var(--green-dark)}
+.sidebar>*{flex-shrink:0}
+.admin-profile{position:sticky;bottom:0;z-index:2;background:var(--green-dark);display:grid;grid-template-columns:36px minmax(0,1fr);gap:10px;padding:16px 0;flex-shrink:0}
+.admin-profile>div{min-width:0}
+.admin-profile strong{max-width:100%}
+.admin-profile small{overflow-wrap:anywhere}
+.admin-profile form{grid-column:1/-1;margin:0;min-width:0}
+.logout-button{display:inline-flex;align-items:center;justify-content:center;gap:9px;width:100%;min-height:44px;padding:9px 14px;border:1px solid #688d7d;border-radius:7px;background:#244f42;color:#fff;font:inherit;font-size:.875rem;cursor:pointer}
+.logout-button:hover{background:#376451}
+.logout-button:focus-visible{outline:3px solid var(--lime);outline-offset:2px}
+.main-shell,.main-content,.panel,.row>*{min-width:0}
+.panel-heading,.phase-toolbar,.result-summary,.member-header{flex-wrap:wrap}
+.panel-heading>*,.phase-toolbar>*,.result-summary>*,.ballot-submit>*,.member-header>*{min-width:0;max-width:100%}
+.btn,.text-link{max-width:100%;overflow-wrap:anywhere}
+.text-link{flex-wrap:wrap}
+.table-responsive{max-width:100%;overflow-x:auto;overscroll-behavior-x:contain}
+.form-control,.form-select,.search-field,.share-link{min-width:0;max-width:100%}
+.app-table td{overflow-wrap:anywhere}
+.auth-card .d-flex{flex-wrap:wrap}
+@media(max-width:850px){
+  .sidebar{position:static;height:auto;max-height:none;overflow:visible;overscroll-behavior:auto}
+  .sidebar nav{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));overflow:visible;padding:0;gap:5px}
+  .nav-item{min-width:0;margin:0;white-space:normal}
+  .nav-item span{min-width:0;overflow-wrap:anywhere}
+  .admin-profile{display:grid;position:static;grid-template-columns:36px minmax(0,1fr) auto;margin-top:15px;padding:15px 0 0}
+  .admin-profile form{grid-column:auto}
+  .admin-profile strong{white-space:normal;overflow-wrap:anywhere}
+  .logout-button{width:auto}
+  .topbar{height:auto;min-height:60px;padding-top:13px;padding-bottom:13px;flex-wrap:wrap}
+  .topbar-right{flex-wrap:wrap;gap:12px}
+  .breadcrumb-label{min-width:0;overflow-wrap:anywhere}
+}
+@media(max-width:560px){
+  .sidebar nav{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .nav-item{min-height:44px}
+  .phase-toolbar{align-items:stretch}
+  .phase-toolbar>form,.phase-toolbar>form>.btn{width:100%}
+  .panel-heading>.btn,.panel-heading>form{width:100%}
+  .panel-heading .search-field{flex-wrap:wrap}
+  .search-field input{width:0;min-width:60px}
+  .ballot-submit{position:static;margin-bottom:0}
+  .auth-card .d-flex>a{justify-content:center}
+  .member-header{gap:12px}
+  .member-header .verified-label{margin-left:auto}
+}
+@media(max-height:500px){.ballot-submit{position:static}}
