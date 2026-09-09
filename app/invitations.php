@@ -28,7 +28,9 @@ function respondToNomination(string $token, string $decision, ?array $photo=null
         if (!$invitation) throw new DomainException('This invitation link is invalid or expired. Please contact your administrator.');
         if ($invitation['responded_at'] || $invitation['decision']!=='pending') throw new DomainException('Your response has already been recorded. Contact your administrator if it needs to change.');
         if (!one("SELECT c.candidate_id FROM choices c JOIN submissions s ON s.id=c.submission_id WHERE s.stage='nomination' AND c.candidate_id=? LIMIT 1",[$invitation['member_id']])) throw new DomainException('This nomination is no longer available.');
-        if ($decision==='accepted') {
+        $hasPhoto=(bool)one('SELECT member_id FROM member_photos WHERE member_id=?',[$invitation['member_id']]);
+        $noUpload=$photo===null || ($photo['error']??null)===UPLOAD_ERR_NO_FILE;
+        if ($decision==='accepted' && (!$hasPhoto || !$noUpload)) {
             if (!$photo || !isset($photo['error'],$photo['tmp_name']) || $photo['error']!==UPLOAD_ERR_OK || !is_string($photo['tmp_name']) || !is_uploaded_file($photo['tmp_name'])) throw new DomainException('Please upload your profile picture before accepting. Use JPG, PNG, or WebP up to 2 MB.');
             $size=filesize($photo['tmp_name']);
             $info=@getimagesize($photo['tmp_name']);
@@ -68,7 +70,7 @@ function processNomineeInvitation(): array {
     try {
         if (strtotime($job['expires_at'].' UTC')<=time()) throw new RuntimeException('Nominee invitation expired before sending.');
         $link=url('index.php?page=nominee_response&token='.invitationToken($job));
-        $body="Hello ".name($job).",\n\nYou have been nominated in ".$job['election_title'].".\n\nWould you like to accept your nomination and stand for election? Open your private response page to accept or decline:\n\n".$link."\n\nUpload your profile picture when accepting so voters can recognize you. Accepting adds you to the official list of candidates for voting. Opening the link alone does not record a response.\n\nThis private link expires on ".$job['expires_at']." UTC, or when voting opens. Please do not forward it.\n\n".siteName();
+        $body="Hello ".name($job).",\n\nYou have been nominated in ".$job['election_title'].".\n\nWould you like to accept your nomination and stand for election? Open your private response page to accept or decline:\n\n".$link."\n\nWhen accepting, upload a profile picture if you do not have one saved. You can also replace your saved picture. Accepting adds you to the official list of candidates for voting. Opening the link alone does not record a response.\n\nThis private link expires on ".$job['expires_at']." UTC, or when voting opens. Please do not forward it.\n\n".siteName();
         sendEmail($job['email'],siteName().': You have been nominated',$body);
     } catch (Throwable $error) {
         $outcome='failed';

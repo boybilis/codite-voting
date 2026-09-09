@@ -117,7 +117,19 @@ try {
     check(str_contains($html,'Upload a valid JPG'),'Disguised non-photo uploads are rejected');
     check((int)$pdo->query('SELECT COUNT(*) FROM member_photos')->fetchColumn()===0 && (int)$pdo->query('SELECT COUNT(*) FROM nominee_decisions')->fetchColumn()===0,'Rejected photo leaves nomination and photos unchanged');
     $picture=$folder.'/profile.png'; file_put_contents($picture,base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII='));
+    $oldBytes=file_get_contents($picture).'saved-photo';
+    $insert=$pdo->prepare('INSERT INTO member_photos (member_id,mime_type,image_data) VALUES (?, ?, ?)'); $insert->execute([$b,'image/png',$oldBytes]);
+    [, $html]=request('nominee_b','index.php?page=nominee_response');
+    check(str_contains($html,'Change profile picture (optional)') && str_contains($html,'Your saved profile picture'),'Saved photo appears with optional replacement');
+    [, $html]=post('nominee_b','index.php?page=nominee_response',['action'=>'nominee_decision','decision'=>'accepted','profile_photo'=>new CURLFile($badPicture,'image/jpeg','bad.jpg')]);
+    check(str_contains($html,'Upload a valid JPG') && $pdo->query('SELECT image_data FROM member_photos WHERE member_id='.(int)$b)->fetchColumn()===$oldBytes,'Invalid replacement preserves saved picture');
+    [, $html]=post('nominee_b','index.php?page=nominee_response',['action'=>'nominee_decision','decision'=>'accepted']);
+    check(str_contains($html,'You are an official nominee') && $pdo->query('SELECT image_data FROM member_photos WHERE member_id='.(int)$b)->fetchColumn()===$oldBytes,'Accepting without an upload reuses saved photo');
+    // Reopen this fixture to exercise replacement through the same authenticated form.
+    $pdo->exec('DELETE FROM nominee_decisions WHERE member_id='.(int)$b);
+    $pdo->exec('UPDATE nominee_invitations SET responded_at=NULL WHERE member_id='.(int)$b);
     [, $html]=post('nominee_b','index.php?page=nominee_response',['action'=>'nominee_decision','decision'=>'accepted','profile_photo'=>new CURLFile($picture,'image/png','profile.png')]);
+    check($pdo->query('SELECT image_data FROM member_photos WHERE member_id='.(int)$b)->fetchColumn()===file_get_contents($picture),'New upload replaces saved picture');
     check(str_contains($html,'You are an official nominee'),'Nominee accepts directly from email link');
     check($pdo->query('SELECT decision FROM nominee_decisions WHERE member_id='.(int)$b)->fetchColumn()==='accepted','Email acceptance immediately records an official candidate');
     [, $html]=request('nominee_b','index.php?page=nominee_response',['csrf'=>$nomineeCsrf,'action'=>'nominee_decision','decision'=>'denied']);
