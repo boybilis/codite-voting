@@ -3,7 +3,13 @@ declare(strict_types=1);
 
 function config(): array {
     static $config;
-    return $config ??= require __DIR__ . '/../config.local.php';
+    if ($config === null) {
+        $config = require __DIR__ . '/../config.local.php';
+        if (($config['environment'] ?? 'production') === 'production') {
+            $config['base_url'] = require __DIR__ . '/site.php';
+        }
+    }
+    return $config;
 }
 function db(): PDO {
     static $pdo;

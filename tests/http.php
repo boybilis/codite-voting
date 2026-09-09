@@ -27,7 +27,7 @@ try {
     $pdo->exec("CREATE DATABASE `$dbName` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
     mkdir($folder); mkdir($folder.'/app'); mkdir($folder.'/storage'); mkdir($folder.'/vendor');
     foreach(['index.php','setup.php'] as $f) copy($root.'/'.$f,$folder.'/'.$f);
-    foreach(['core.php','bootstrap.php','views.php','migrations.php','schema.sql'] as $f) copy($root.'/app/'.$f,$folder.'/app/'.$f);
+    foreach(['core.php','bootstrap.php','views.php','migrations.php','site.php','schema.sql'] as $f) copy($root.'/app/'.$f,$folder.'/app/'.$f);
     file_put_contents($folder.'/vendor/autoload.php',"<?php require ".var_export($root.'/vendor/autoload.php',true).";");
     $config['base_url']=$base; $config['db']['name']=$dbName; $config['setup_key']=bin2hex(random_bytes(24)); $config['mail']['transport']='log';
     file_put_contents($folder.'/config.local.php',"<?php return ".var_export($config,true).";");

@@ -57,12 +57,12 @@ Use the packaged `release/assembly-hostinger.zip`, which includes the installed 
 
 1. Select PHP **8.2 or newer** with `pdo_mysql`, `mbstring`, `openssl`, `iconv`, and sessions enabled. Create an empty MySQL/MariaDB database and a database user.
 2. Upload and extract the release ZIP into the intended site folder, commonly `public_html` or a subfolder. Preserve all `.htaccess` files, including the files inside `app`, `vendor`, and `storage`.
-3. Copy `config.example.php` to `config.local.php`. Set `base_url` to the exact public **HTTPS** URL, including any subfolder. Keep `environment` as `production`.
+3. Copy `config.example.php` to `config.local.php`. Keep `environment` as `production`. The public URL is centrally configured as **https://voting.ibarakotech.com** in `app/site.php`; production redirects, member links, and QR codes use it automatically.
 4. Enter your hosting database host, port, database name, username, and password.
 5. Generate different random values for `app_key` and `setup_key`. For example, run `php -r "echo bin2hex(random_bytes(32)), PHP_EOL;"` twice on a trusted machine. Do not reuse the local setup key.
 6. Create a sending mailbox. Set `mail.transport` to `smtp`, enter its full email address and mailbox password, and set `from_email` to that mailbox.
 7. Enable HTTPS and force HTTPS access in your hosting settings. Allow PHP to write to `storage` (normally owner-writable directories, not world-writable permissions).
-8. Visit `https://your-domain.com/setup.php`, supply the private setup key, and create your administrator. The installer creates the tables in the configured database and then locks itself.
+8. Visit `https://voting.ibarakotech.com/setup.php`, supply the private setup key, and create your administrator. The installer creates the tables in the configured database and then locks itself.
 9. Add a test member you control. Open nominations and verify a real email delivery, ballot submission, and the admin reset code before inviting your members. Set final election limits in draft after your test reset.
 10. Confirm private files return HTTP 403: `/storage/setup-key.txt`, `/app/schema.sql`, and `/config.local.php`. Download fresh QR codes after setting the public URL; a localhost QR cannot direct another phone to your hosted site.
 
@@ -99,7 +99,7 @@ The repository intentionally excludes `config.local.php`, installed Composer pac
 
 1. Deploy the `main` branch from `https://github.com/boybilis/codite-voting.git` into your Hostinger site folder.
 2. In that folder, run `composer install --no-dev --optimize-autoloader` with PHP 8.2 or newer. If your hosting plan does not provide Composer/SSH, run this locally and upload the resulting `vendor` folder, or build and upload the release ZIP instead.
-3. Create `config.local.php` on the server from `config.example.php`, entering the production HTTPS URL, Hostinger database credentials, SMTP mailbox credentials, and freshly generated keys.
+3. Create `config.local.php` on the server from `config.example.php`, entering Hostinger database credentials, SMTP mailbox credentials, and freshly generated keys. Keep `environment` as `production` to use the configured public domain.
 4. Make `storage` writable by PHP, preserve the `.htaccess` files, and open `/setup.php` to create your admin account.
 5. Follow the real email and private-file checks in the Hostinger deployment section above. The app does not automatically read Hostinger database or email settings.
 
@@ -112,3 +112,14 @@ School (up to 160 characters) and Position (up to 120 characters, such as Teache
 Older four-column CSV files still work; add optional school and position columns to import these details. Duplicate emails are still skipped; use Save profile in the directory to update existing records.
 
 Existing deployments add the two database columns automatically on the first request after updating. This preserves members, nominations, and votes, and requires the application's database user to have ALTER permission on the members table. Existing profiles start with blank School and Position values.
+
+## Production domain
+
+The production website is **https://voting.ibarakotech.com**. The canonical URL is defined once in `app/site.php` and is used whenever `environment` is `production`, even if an older private configuration still contains a placeholder base URL. Local mode continues to use its own configured localhost address.
+
+- Setup: https://voting.ibarakotech.com/setup.php
+- Admin login: https://voting.ibarakotech.com/index.php?page=login
+- Nominations: https://voting.ibarakotech.com/index.php?page=participate&stage=nomination
+- Voting: https://voting.ibarakotech.com/index.php?page=participate&stage=voting
+
+Deploy the latest main branch and download fresh QR codes if older codes were distributed. DNS, the Hostinger domain connection, and its HTTPS certificate are managed in your hosting account. Your SMTP sender must be an actual mailbox you control; the website domain does not create that mailbox.
