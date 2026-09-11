@@ -77,6 +77,13 @@ try {
     [, $html]=post('stale',$nom,['action'=>'verify_otp','code'=>lastCode()]);
     check(str_contains($html,'Request a new verification code.'),'Cleared OTP challenge cannot be used');
     post('member',$nom,['action'=>'request_otp','email'=>'ana@example.test']); $code=lastCode();
+    for ($attempt=0;$attempt<6;$attempt++) {
+        [, $cooldownHtml]=post('member',$nom,['action'=>'request_otp','email'=>'ana@example.test']);
+    }
+    check(str_contains($cooldownHtml,'A code was recently requested') && str_contains($cooldownHtml,'Try again in'),'OTP cooldown identifies reason and remaining wait');
+    $emailBucket=hash_hmac('sha256','otp-email:ana@example.test',$config['app_key']);
+    $hits=$pdo->prepare('SELECT hits FROM rate_limits WHERE bucket=?'); $hits->execute([$emailBucket]);
+    check((int)$hits->fetchColumn()===1,'Cooldown clicks do not consume hourly email requests');
     [, $html]=post('member',$nom,['action'=>'verify_otp','code'=>$code]); check(str_contains($html,'Who would you like to nominate?'),'Email OTP unlocks nomination ballot');
     check(!str_contains($html,'id="candidate-'.$b.'"') && str_contains($html,'id="candidate-'.$c.'"'),'Nomination list excludes Officers and includes Members');
     [, $html]=post('member',$nom,['action'=>'submit_ballot','candidates'=>[$b,$c]]);
@@ -213,3 +220,4 @@ try {
     if(preg_match('/^assembly_http_[a-f0-9]{12}$/',$dbName)) $pdo->exec("DROP DATABASE IF EXISTS `$dbName`");
     if(is_dir($folder)) cleanDirectory($folder,$root.'/storage');
 }
+

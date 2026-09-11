@@ -47,16 +47,16 @@ function name(array $m): string { return $m['first_name'] . ($m['middle_initial'
 function admin(): ?array { return isset($_SESSION['admin_id']) ? one('SELECT * FROM admins WHERE id=?', [$_SESSION['admin_id']]) : null; }
 function requireAdmin(): array { $a = admin(); if (!$a) redirect('index.php?page=login'); return $a; }
 function audit(string $action, array $details = []): void { query('INSERT INTO audit_log (admin_id,action,details) VALUES (?,?,?)', [$_SESSION['admin_id'] ?? null, $action, json_encode($details, JSON_THROW_ON_ERROR)]); }
-function rateLimit(string $key, int $limit, int $seconds): void {
+function rateLimit(string $key, int $limit, int $seconds, string $message='Too many attempts.'): void {
     $bucket = hash_hmac('sha256', $key, config()['app_key']);
-    $allowed = transaction(function () use ($bucket, $limit, $seconds) {
+    $retryAfter = transaction(function () use ($bucket, $limit, $seconds) {
         query('INSERT IGNORE INTO rate_limits (bucket,hits,expires_at) VALUES (?,0,?)', [$bucket, gmdate('Y-m-d H:i:s', time() + $seconds)]);
         $r = one('SELECT * FROM rate_limits WHERE bucket=? FOR UPDATE', [$bucket]);
-        if (strtotime($r['expires_at'] . ' UTC') <= time()) { query('UPDATE rate_limits SET hits=1,expires_at=? WHERE bucket=?', [gmdate('Y-m-d H:i:s', time() + $seconds), $bucket]); return true; }
-        if ($r['hits'] >= $limit) return false;
-        query('UPDATE rate_limits SET hits=hits+1 WHERE bucket=?', [$bucket]); return true;
+        if (strtotime($r['expires_at'] . ' UTC') <= time()) { query('UPDATE rate_limits SET hits=1,expires_at=? WHERE bucket=?', [gmdate('Y-m-d H:i:s', time() + $seconds), $bucket]); return 0; }
+        if ($r['hits'] >= $limit) return max(1,strtotime($r['expires_at'].' UTC')-time());
+        query('UPDATE rate_limits SET hits=hits+1 WHERE bucket=?', [$bucket]); return 0;
     });
-    if (!$allowed) throw new DomainException('Too many attempts. Please wait before trying again.');
+    if ($retryAfter) throw new DomainException($message.' Try again in '.($retryAfter<60?$retryAfter.' seconds':(int)ceil($retryAfter/60).' minutes').'.');
 }
 function sendCode(string $email, string $code, string $purpose): void {
     $body = "Your ".siteName()." verification code is: $code\n\nPurpose: $purpose\nThis code expires in 10 minutes. Do not share it. If you did not request it, ignore this message.";
@@ -77,8 +77,9 @@ function sendEmail(string $email, string $subject, string $body): void {
     $mail->Subject = $subject; $mail->Body = $body; $mail->send();
 }
 function issueOtp(string $email, string $purpose, string $context): string {
-    rateLimit('otp-email:' . $email, 5, 3600);
-    rateLimit('otp-cooldown:' . $email, 1, 60);
+    // Check cooldown first so repeated clicks do not consume the hourly allowance.
+    rateLimit('otp-cooldown:' . $email, 1, 60, 'A code was recently requested for this email. Check your inbox and spam folder.');
+    rateLimit('otp-email:' . $email, max(1,(int)(config()['rate_limits']['otp_email_per_hour']??20)), 3600, 'This email has reached its hourly code request limit.');
     $id = bin2hex(random_bytes(16)); $code = (string)random_int(100000, 999999);
     query('UPDATE otp_challenges SET consumed=1 WHERE email=? AND purpose=?', [$email, $purpose]);
     query('INSERT INTO otp_challenges (id,email,purpose,code_hash,context_hash,expires_at) VALUES (?,?,?,?,?,?)', [$id, $email, $purpose, password_hash($code, PASSWORD_DEFAULT), hash('sha256', $context), gmdate('Y-m-d H:i:s', time()+600)]);

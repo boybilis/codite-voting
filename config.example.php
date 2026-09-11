@@ -6,6 +6,11 @@ return [
     'app_key' => 'REPLACE_WITH_64_RANDOM_HEX_CHARACTERS',
     'setup_key' => 'REPLACE_WITH_A_LONG_RANDOM_SECRET',
     'db' => ['host' => '127.0.0.1', 'port' => 3306, 'name' => 'assembly', 'user' => 'root', 'password' => ''],
+    'rate_limits' => [
+        'otp_email_per_hour' => 20,
+        'otp_ip_per_hour' => 1000,
+        'verification_ip_per_15min' => 1000,
+    ],
     'mail' => [
         'transport' => 'smtp', // "log" is allowed only in the local environment.
         'host' => 'smtp.hostinger.com', 'port' => 465, 'encryption' => 'ssl',

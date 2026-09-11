@@ -55,7 +55,7 @@ if($_SERVER['REQUEST_METHOD']==='POST') {
             if($action==='start_over') { unset($_SESSION['challenge'],$_SESSION['verified']); redirect('index.php?page=participate&stage='.$stage); }
             if($el['phase']!==$stage) throw new DomainException('This stage is not currently open.');
             if($action==='request_otp') {
-                rateLimit('otp-ip:'.($_SERVER['REMOTE_ADDR']??''),(int)(config()['rate_limits']['otp_ip_per_hour']??1000),3600);
+                rateLimit('otp-ip:'.($_SERVER['REMOTE_ADDR']??''),(int)(config()['rate_limits']['otp_ip_per_hour']??1000),3600,'This internet connection has reached its hourly code request limit.');
                 $email=strtolower(trim((string)($_POST['email']??'')));
                 if(!filter_var($email,FILTER_VALIDATE_EMAIL) || strlen($email)>254) throw new DomainException('Enter a valid email address.');
                 $m=one('SELECT * FROM members WHERE email=? AND active=1',[$email]);
