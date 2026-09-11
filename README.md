@@ -171,3 +171,5 @@ Nominees without a saved picture must upload a JPG, PNG, or WebP picture when ac
 
 ### Member status and CSV updates
 Member profiles now include member_status: Officer or Member (case-insensitive on import). Existing and new profiles default to Member. CSV uploads match email addresses and update supplied profile columns; missing optional columns preserve existing values. Blank status values are rejected. New emails create members. Photos, IDs, nomination responses and ballots are retained. The member register remains editable only in draft or nomination phases. Download the updated CSV template from Members; backups now include member_status. The database column is added automatically on upgrade.
+
+Only active profiles with member_status Member appear as nomination candidates. Officer profiles cannot be nominated, including by a manually submitted request. Officers retain their ability to verify membership and participate. Previously recorded nominations are not deleted when a profile status changes.

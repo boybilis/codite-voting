@@ -78,6 +78,11 @@ try {
     check(str_contains($html,'Request a new verification code.'),'Cleared OTP challenge cannot be used');
     post('member',$nom,['action'=>'request_otp','email'=>'ana@example.test']); $code=lastCode();
     [, $html]=post('member',$nom,['action'=>'verify_otp','code'=>$code]); check(str_contains($html,'Who would you like to nominate?'),'Email OTP unlocks nomination ballot');
+    check(!str_contains($html,'id="candidate-'.$b.'"') && str_contains($html,'id="candidate-'.$c.'"'),'Nomination list excludes Officers and includes Members');
+    [, $html]=post('member',$nom,['action'=>'submit_ballot','candidates'=>[$b,$c]]);
+    check(str_contains($html,'no longer eligible') && (int)$pdo->query("SELECT COUNT(*) FROM submissions WHERE stage='nomination'")->fetchColumn()===0,'Server rejects Officer nominations without recording a ballot');
+    post('admin','index.php?page=members',['action'=>'update_profile','member_id'=>$b,'school'=>'Central School','position'=>'Principal','member_status'=>'Member']);
+    [, $html]=request('member',$nom);
     check(str_contains($html,'Central School') && str_contains($html,'Principal'),'Member ballot displays School and Position');
     [, $html]=post('member',$nom,['action'=>'submit_ballot','candidates'=>[$b,$c]]); check(str_contains($html,'Nominations submitted'),'Nomination submission reaches success page');
     post('member',$nom,['action'=>'submit_ballot','candidates'=>[$b]]);

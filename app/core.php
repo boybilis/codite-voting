@@ -169,7 +169,7 @@ function submitBallot(int $memberId, string $stage, int $generation, array $ids)
         foreach ($ids as $id) { if (!is_scalar($id) || !ctype_digit((string)$id) || (int)$id<1) throw new DomainException('Invalid selection.'); $clean[]=(int)$id; }
         if (!$clean || count($clean)>$limit || count(array_unique($clean))!==count($clean)) throw new DomainException("Choose between 1 and $limit different members.");
         foreach ($clean as $id) {
-            $valid=$stage==='nomination' ? one('SELECT id FROM members WHERE id=? AND active=1',[$id]) : one("SELECT m.id FROM members m JOIN nominee_decisions d ON d.member_id=m.id WHERE m.id=? AND m.active=1 AND d.decision='accepted'",[$id]);
+            $valid=$stage==='nomination' ? one("SELECT id FROM members WHERE id=? AND active=1 AND member_status='Member'",[$id]) : one("SELECT m.id FROM members m JOIN nominee_decisions d ON d.member_id=m.id WHERE m.id=? AND m.active=1 AND d.decision='accepted'",[$id]);
             if (!$valid) throw new DomainException('One of your selections is no longer eligible.');
         }
         query('INSERT INTO submissions (member_id,stage) VALUES (?,?)',[$memberId,$stage]); $submission=(int)db()->lastInsertId();
