@@ -99,8 +99,10 @@ function consumeOtp(string $id, string $email, string $purpose, string $context,
         if (!$r || $r['email'] !== $email || $r['purpose'] !== $purpose || $r['context_hash'] !== hash('sha256', $context) || $r['consumed'] || $r['attempts'] >= 5 || strtotime($r['expires_at'].' UTC') <= time()) return false;
         query('UPDATE otp_challenges SET attempts=attempts+1 WHERE id=?', [$id]);
         if (!password_verify($code, $r['code_hash'])) return false;
-        query('UPDATE otp_challenges SET consumed=1 WHERE id=?', [$id]);
-        query('UPDATE rate_limits SET hits=0 WHERE bucket=?',[hash_hmac('sha256','otp-email:'.$email,config()['app_key'])]);
+        query('UPDATE otp_challenges SET consumed=1,attempts=0 WHERE id=?', [$id]);
+        foreach (['otp-email:','otp-cooldown:'] as $prefix) {
+            query('UPDATE rate_limits SET hits=0 WHERE bucket=?',[hash_hmac('sha256',$prefix.$email,config()['app_key'])]);
+        }
         return true;
     });
     if (!$valid) throw new DomainException('Invalid or expired code. Codes allow five attempts and expire after 10 minutes.');

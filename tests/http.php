@@ -98,6 +98,10 @@ try {
     $hits->execute([$emailBucket]); check((int)$hits->fetchColumn()===1,'Incorrect OTP does not reset email request counter');
     [, $html]=post('member',$nom,['action'=>'verify_otp','code'=>$code]); check(str_contains($html,'Who would you like to nominate?'),'Email OTP unlocks nomination ballot');
     $hits->execute([$emailBucket]); check((int)$hits->fetchColumn()===0,'Successful OTP verification resets email request counter');
+    $hits->execute([hash_hmac('sha256','otp-cooldown:ana@example.test',$config['app_key'])]);
+    check((int)$hits->fetchColumn()===0,'Successful verification clears the email resend cooldown');
+    $used=$pdo->query("SELECT attempts,consumed FROM otp_challenges WHERE email='ana@example.test' AND purpose='nomination' ORDER BY expires_at DESC LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+    check((int)$used['attempts']===0 && (int)$used['consumed']===1,'Wrong-code attempts reset while verified code remains unusable');
     check(!str_contains($html,'id="candidate-'.$b.'"') && str_contains($html,'id="candidate-'.$c.'"'),'Nomination list excludes Officers and includes Members');
     [, $html]=post('member',$nom,['action'=>'submit_ballot','candidates'=>[$b,$c]]);
     check(str_contains($html,'no longer eligible') && (int)$pdo->query("SELECT COUNT(*) FROM submissions WHERE stage='nomination'")->fetchColumn()===0,'Server rejects Officer nominations without recording a ballot');
