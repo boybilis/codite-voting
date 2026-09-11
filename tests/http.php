@@ -30,7 +30,7 @@ try {
     foreach(['index.php','setup.php'] as $f) copy($root.'/'.$f,$folder.'/'.$f);
     foreach(['core.php','bootstrap.php','views.php','migrations.php','site.php','invitations.php','invitation-schema.sql','photo-schema.sql','schema.sql'] as $f) copy($root.'/app/'.$f,$folder.'/app/'.$f);
     file_put_contents($folder.'/vendor/autoload.php',"<?php require ".var_export($root.'/vendor/autoload.php',true).";");
-    $config['base_url']=$base; $config['db']['name']=$dbName; $config['setup_key']=bin2hex(random_bytes(24)); $config['mail']['transport']='log';
+    $config['member_otp_enabled']=true; $config['base_url']=$base; $config['db']['name']=$dbName; $config['setup_key']=bin2hex(random_bytes(24)); $config['mail']['transport']='log';
     file_put_contents($folder.'/config.local.php',"<?php return ".var_export($config,true).";");
     file_put_contents($folder.'/router.php', '<?php $path=parse_url($_SERVER["REQUEST_URI"],PHP_URL_PATH); if(!in_array($path,["/index.php","/setup.php","/"],true)){http_response_code(404);exit;} return false;');
     $process=proc_open([PHP_BINARY,'-S','127.0.0.1:'.$port,'-t',$folder,$folder.'/router.php'],[0=>['pipe','r'],1=>['file',$folder.'/server.log','a'],2=>['file',$folder.'/server.log','a']],$pipes,$folder,null,['bypass_shell'=>true,'create_no_window'=>true]);
@@ -66,6 +66,16 @@ try {
     check($pdo->query('SELECT member_status FROM members WHERE id='.(int)$b)->fetchColumn()==='Officer','Legacy CSV retains Officer status');
     post('admin','index.php?page=dashboard',['action'=>'phase','next'=>'nomination']);
     $nom='index.php?page=participate&stage=nomination';
+    $config['member_otp_enabled']=false;
+    file_put_contents($folder.'/config.local.php',"<?php return ".var_export($config,true).";");
+    [, $html]=post('email_only',$nom,['action'=>'request_otp','email'=>'unknown@example.test']);
+    check(str_contains($html,'This email is not registered'),'Email-only mode still rejects unregistered addresses');
+    [, $html]=post('email_only',$nom,['action'=>'request_otp','email'=>'ana@example.test']);
+    check(str_contains($html,'Who would you like to nominate?') && (int)$pdo->query('SELECT COUNT(*) FROM otp_challenges')->fetchColumn()===0,'Registered email opens nomination ballot without an OTP');
+    $config['member_otp_enabled']=true;
+    file_put_contents($folder.'/config.local.php',"<?php return ".var_export($config,true).";");
+    [, $html]=post('email_only',$nom,['action'=>'submit_ballot','candidates'=>[$c]]);
+    check(str_contains($html,'verification expired'),'Restoring OTP rejects sessions created using email only');
     [, $html]=request('member',$nom); check(str_contains($html,'Verify your membership') && !str_contains($html,'Ana A. Member'),'Candidate names are hidden before verification');
     [, $html]=post('member',$nom,['action'=>'submit_ballot','candidates'=>[$b]]); check(str_contains($html,'verification expired'),'Unverified direct ballot submission is rejected');
     [, $html]=post('unknown',$nom,['action'=>'request_otp','email'=>'unknown@example.test']); check(str_contains($html,'This email is not registered. Please contact your administrator.'),'Unregistered email shows membership error');
@@ -220,4 +230,3 @@ try {
     if(preg_match('/^assembly_http_[a-f0-9]{12}$/',$dbName)) $pdo->exec("DROP DATABASE IF EXISTS `$dbName`");
     if(is_dir($folder)) cleanDirectory($folder,$root.'/storage');
 }
-

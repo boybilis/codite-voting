@@ -13,7 +13,7 @@ if (!$installed) redirect('setup.php');
 if(!in_array($page,$public,true)) requireAdmin();
 if ($page==='candidate_photo') {
     $el=election(); $v=$_SESSION['verified']??null;
-    $allowed=admin() || ($v && $v['expires']>=time() && $v['stage']==='voting' && $v['generation']===(int)$el['generation'] && $el['phase']==='voting' && one('SELECT id FROM members WHERE id=? AND active=1',[$v['member_id']]));
+    $allowed=admin() || ($v && !(memberOtpEnabled() && !empty($v['email_only'])) && $v['expires']>=time() && $v['stage']==='voting' && $v['generation']===(int)$el['generation'] && $el['phase']==='voting' && one('SELECT id FROM members WHERE id=? AND active=1',[$v['member_id']]));
     $photo=$allowed ? one("SELECT p.* FROM member_photos p JOIN nominee_decisions d ON d.member_id=p.member_id JOIN members m ON m.id=p.member_id WHERE p.member_id=? AND d.decision='accepted' AND m.active=1",[(int)($_GET['id']??0)]) : null;
     if (!$photo) { http_response_code(404); exit; }
     header('Content-Type: '.$photo['mime_type']); header('X-Content-Type-Options: nosniff');
@@ -55,13 +55,20 @@ if($_SERVER['REQUEST_METHOD']==='POST') {
             if($action==='start_over') { unset($_SESSION['challenge'],$_SESSION['verified']); redirect('index.php?page=participate&stage='.$stage); }
             if($el['phase']!==$stage) throw new DomainException('This stage is not currently open.');
             if($action==='request_otp') {
-                rateLimit('otp-ip:'.($_SERVER['REMOTE_ADDR']??''),(int)(config()['rate_limits']['otp_ip_per_hour']??1000),3600,'This internet connection has reached its hourly code request limit.');
+                if (memberOtpEnabled()) rateLimit('otp-ip:'.($_SERVER['REMOTE_ADDR']??''),(int)(config()['rate_limits']['otp_ip_per_hour']??1000),3600,'This internet connection has reached its hourly code request limit.');
                 $email=strtolower(trim((string)($_POST['email']??'')));
                 if(!filter_var($email,FILTER_VALIDATE_EMAIL) || strlen($email)>254) throw new DomainException('Enter a valid email address.');
                 $m=one('SELECT * FROM members WHERE email=? AND active=1',[$email]);
                 if (!$m) {
                     unset($_SESSION['challenge'], $_SESSION['verified']);
                     throw new DomainException('This email is not registered. Please contact your administrator.');
+                }
+                if (!memberOtpEnabled()) {
+                    session_regenerate_id(true);
+                    $_SESSION['verified']=['member_id'=>(int)$m['id'],'stage'=>$stage,'generation'=>(int)$el['generation'],'expires'=>time()+1800,'email_only'=>true];
+                    unset($_SESSION['challenge']);
+                    flash('Member found. You can now make your selections.');
+                    redirect('index.php?page=participate&stage='.$stage);
                 }
                 $context=session_id().':'.$el['generation'].':'.$stage;
                 $id=issueOtp($email,$stage,$context);
@@ -80,7 +87,7 @@ if($_SERVER['REQUEST_METHOD']==='POST') {
                 unset($_SESSION['challenge']); flash('Membership verified. You can now make your selections.');
             } elseif($action==='submit_ballot') {
                 $v=$_SESSION['verified']??null;
-                if(!$v || $v['expires']<time() || $v['stage']!==$stage || $v['generation']!==(int)$el['generation']) throw new DomainException('Your verification expired. Verify your email again.');
+                if(!$v || (memberOtpEnabled() && !empty($v['email_only'])) || $v['expires']<time() || $v['stage']!==$stage || $v['generation']!==(int)$el['generation']) throw new DomainException('Your verification expired. Verify your email again.');
                 $ids=$_POST['candidates']??[];
                 if(!is_array($ids)) throw new DomainException('Invalid ballot.');
                 submitBallot($v['member_id'],$stage,$v['generation'],$ids); flash('Your selections have been recorded. Thank you for participating.');

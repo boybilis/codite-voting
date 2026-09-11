@@ -14,6 +14,8 @@ function config(): array {
     }
     return $config;
 }
+function memberOtpEnabled(): bool { return (bool)(config()['member_otp_enabled']??false); }
+
 function appKeyError(mixed $key): ?string {
     if (!is_string($key) || $key === '') return 'app_key is missing or is not a text value.';
     if (str_contains($key, 'REPLACE')) return 'app_key still contains the placeholder text REPLACE. Replace the entire placeholder with your generated key.';

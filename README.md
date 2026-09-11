@@ -175,3 +175,6 @@ Member profiles now include member_status: Officer or Member (case-insensitive o
 Only active profiles with member_status Member appear as nomination candidates. Officer profiles cannot be nominated, including by a manually submitted request. Officers retain their ability to verify membership and participate. Previously recorded nominations are not deleted when a profile status changes.
 
 OTP request limits: a 60-second per-email cooldown and a configurable default of 20 requests per email per hour. Cooldown retries do not consume the hourly email allowance. Error messages identify the limit and remaining wait. Set rate_limits.otp_email_per_hour in config.local.php to customize; shared-network request and verification limits remain configurable separately. OTPs still expire in 10 minutes and allow five guesses.
+
+### Temporary email-only member access
+Member OTP is temporarily disabled by default for testing. Registered active members enter their email and proceed to nomination or voting without a code; unknown emails remain blocked. This does not verify mailbox ownership. Set member_otp_enabled to true in config.local.php to restore OTP; email-only sessions must then verify again. Administrator login, reset OTP, ballot limits and once-per-stage rules remain unchanged. Nominee invitation emails continue normally.
