@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS choices (
  FOREIGN KEY (candidate_id) REFERENCES members(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE IF NOT EXISTS nominee_decisions (
+ is_manual TINYINT(1) NOT NULL DEFAULT 0,
  member_id BIGINT UNSIGNED PRIMARY KEY,
  decision ENUM('pending','accepted','denied') NOT NULL DEFAULT 'pending',
  FOREIGN KEY (member_id) REFERENCES members(id)

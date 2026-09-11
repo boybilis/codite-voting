@@ -27,7 +27,7 @@ function respondToNomination(string $token, string $decision, ?array $photo=null
         $invitation=invitationForToken($token);
         if (!$invitation) throw new DomainException('This invitation link is invalid or expired. Please contact your administrator.');
         if ($invitation['responded_at'] || $invitation['decision']!=='pending') throw new DomainException('Your response has already been recorded. Contact your administrator if it needs to change.');
-        if (!one("SELECT c.candidate_id FROM choices c JOIN submissions s ON s.id=c.submission_id WHERE s.stage='nomination' AND c.candidate_id=? LIMIT 1",[$invitation['member_id']])) throw new DomainException('This nomination is no longer available.');
+        if (!one("SELECT member_id FROM nominee_decisions WHERE member_id=? AND is_manual=1",[$invitation['member_id']]) && !one("SELECT c.candidate_id FROM choices c JOIN submissions s ON s.id=c.submission_id WHERE s.stage='nomination' AND c.candidate_id=? LIMIT 1",[$invitation['member_id']])) throw new DomainException('This nomination is no longer available.');
         $hasPhoto=(bool)one('SELECT member_id FROM member_photos WHERE member_id=?',[$invitation['member_id']]);
         $noUpload=$photo===null || ($photo['error']??null)===UPLOAD_ERR_NO_FILE;
         if ($decision==='accepted' && (!$hasPhoto || !$noUpload)) {

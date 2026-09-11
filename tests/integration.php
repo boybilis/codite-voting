@@ -133,6 +133,18 @@ try {
     db()->exec("SET SESSION sql_mode = 'STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION,ONLY_FULL_GROUP_BY'");
     check(election()['phase']==='draft' && (int)query('SELECT COUNT(*) FROM members')->fetchColumn()===4 && count(tally('nomination'))===0,'Election reset retains members and clears ballots');
     rejects(fn()=>resetElection('all',2),'Stale reset request is rejected');
+    rejects(fn()=>prepareManualRunoff([$a,$b],1),'Officers cannot be added as manual runoff nominees');
+    check(count(tally('nomination'))===0,'Invalid runoff selection rolls back all nominees');
+    rejects(fn()=>prepareManualRunoff([$b,$c],2),'Runoff seats must be fewer than tied candidates');
+    prepareManualRunoff([$b,$c],1);
+    check(election()['phase']==='review' && (int)election()['vote_limit']===1 && (int)election()['officer_count']===1,'Manual runoff skips nominations and configures remaining seats');
+    check(count(tally('nomination'))===2 && array_sum(array_column(tally('nomination'),'votes'))===0 && count(tally('voting'))===2,'Manual nominees appear without fabricated nomination votes');
+    decideNominee($b,'accepted');
+    changePhase('voting');
+    rejects(fn()=>prepareManualRunoff([$b,$c],1),'Manual nominees cannot change an open election');
+    submitBallot($a,'voting',3,[$b]);
+    changePhase('closed');
+    check(tally('voting')[0]['id']==$b && tally('voting')[0]['votes']==1,'Members can vote in the manual runoff');
     resetElection('all',3);
     check((int)query('SELECT COUNT(*) FROM members')->fetchColumn()===0,'Full reset clears member register');
     check((int)query('SELECT COUNT(*) FROM audit_log')->fetchColumn()>0,'Reset retains audit history');

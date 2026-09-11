@@ -228,6 +228,11 @@ try {
     $restored=$pdo->query('SELECT '.$fields.' FROM members ORDER BY email')->fetchAll(PDO::FETCH_ASSOC);
     check($restored===$original,'Full reset and CSV restore preserve all profile fields including Unicode, quotes, and formula-like text');
     check(str_contains($html,'Download members CSV'),'Member directory exposes backup download');
+    $runoffIds=$pdo->query('SELECT id FROM members ORDER BY id LIMIT 2')->fetchAll(PDO::FETCH_COLUMN);
+    [, $html]=post('admin','index.php?page=nominations',['action'=>'manual_runoff','runoff_candidates'=>$runoffIds,'remaining_positions'=>'1']);
+    check(str_contains($html,'Runoff nominees added') && $pdo->query('SELECT phase FROM elections')->fetchColumn()==='review','Admin can prepare accepted manual nominees from the nomination page');
+    post('admin','index.php?page=voting',['action'=>'phase','next'=>'voting']);
+    check($pdo->query('SELECT phase FROM elections')->fetchColumn()==='voting','Admin can open voting directly for manual nominees');
     [, $html]=request('outsider','setup.php'); check(str_contains($html,'Welcome back'),'Installer locks after first administrator');
     $log=is_file($folder.'/storage/error.log')?file_get_contents($folder.'/storage/error.log'):'';
     check($log==='', 'No application warnings or errors during HTTP workflow');

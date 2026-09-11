@@ -154,7 +154,7 @@ function parseCsv(string $path): array {
     } finally { fclose($f); }
 }
 function tally(string $stage): array {
-    if ($stage === 'nomination') return query("SELECT m.*, t.votes, COALESCE(d.decision,'pending') AS decision FROM (SELECT c.candidate_id, COUNT(*) AS votes FROM choices c JOIN submissions s ON s.id=c.submission_id WHERE s.stage='nomination' GROUP BY c.candidate_id) t JOIN members m ON m.id=t.candidate_id LEFT JOIN nominee_decisions d ON d.member_id=m.id ORDER BY votes DESC,m.last_name,m.first_name,m.id")->fetchAll();
+    if ($stage === 'nomination') return query("SELECT m.*, COALESCE(t.votes,0) AS votes, COALESCE(d.decision,'pending') AS decision FROM members m LEFT JOIN (SELECT c.candidate_id, COUNT(*) AS votes FROM choices c JOIN submissions s ON s.id=c.submission_id WHERE s.stage='nomination' GROUP BY c.candidate_id) t ON m.id=t.candidate_id LEFT JOIN nominee_decisions d ON d.member_id=m.id WHERE t.candidate_id IS NOT NULL OR d.is_manual=1 ORDER BY votes DESC,m.last_name,m.first_name,m.id")->fetchAll();
     return query("SELECT m.*, (SELECT COUNT(*) FROM choices c JOIN submissions s ON s.id=c.submission_id WHERE c.candidate_id=m.id AND s.stage='voting') AS votes FROM members m JOIN nominee_decisions d ON d.member_id=m.id WHERE d.decision='accepted' ORDER BY votes DESC,m.last_name,m.first_name,m.id")->fetchAll();
 }
 function rankResults(array $rows, int $seats): array {
@@ -187,6 +187,24 @@ function submitBallot(int $memberId, string $stage, int $generation, array $ids)
         foreach($clean as $id) query('INSERT INTO choices (submission_id,candidate_id) VALUES (?,?)',[$submission,$id]);
     });
 }
+function prepareManualRunoff(array $ids, int $seats): void {
+    transaction(function () use ($ids,$seats) {
+        if (election(true)['phase']!=='draft') throw new DomainException('Reset nominations and votes before preparing a manual runoff.');
+        $clean=[];
+        foreach ($ids as $id) {
+            if (!is_scalar($id) || !ctype_digit((string)$id) || (int)$id<1) throw new DomainException('Choose registered members.');
+            $clean[]=(int)$id;
+        }
+        if (count($clean)<2 || count($clean)!==count(array_unique($clean)) || $seats<1 || $seats>100 || $seats>=count($clean)) throw new DomainException('Choose at least two tied members and fewer remaining positions than candidates.');
+        if (one('SELECT id FROM submissions LIMIT 1') || one('SELECT member_id FROM nominee_decisions LIMIT 1')) throw new DomainException('Reset nominations and votes before adding runoff nominees.');
+        foreach ($clean as $id) {
+            if (!one("SELECT id FROM members WHERE id=? AND active=1 AND member_status='Member'",[$id])) throw new DomainException('Only active Members can be runoff nominees. Officers are excluded.');
+            query("INSERT INTO nominee_decisions (member_id,decision,is_manual) VALUES (?,'accepted',1)",[$id]);
+        }
+        query("UPDATE elections SET phase='review',vote_limit=?,officer_count=? WHERE id=1",[$seats,$seats]);
+        audit('manual_runoff_prepared',['member_ids'=>$clean,'remaining_positions'=>$seats]);
+    });
+}
 function changePhase(string $next): void {
     transaction(function () use ($next) {
         $el=election(true); $map=['draft'=>'nomination','nomination'=>'review','review'=>'voting','voting'=>'closed'];
@@ -206,7 +224,7 @@ function decideNominee(int $id, string $decision): void {
     transaction(function () use ($id,$decision) {
         if(election(true)['phase']!=='review') throw new DomainException('Nominee decisions can only be changed during review.');
         if(!in_array($decision,['pending','accepted','denied'],true)) throw new DomainException('Invalid decision.');
-        if(!one("SELECT c.candidate_id FROM choices c JOIN submissions s ON s.id=c.submission_id WHERE s.stage='nomination' AND c.candidate_id=? LIMIT 1",[$id])) throw new DomainException('Member has not been nominated.');
+        if(!one("SELECT member_id FROM nominee_decisions WHERE member_id=? AND is_manual=1",[$id]) && !one("SELECT c.candidate_id FROM choices c JOIN submissions s ON s.id=c.submission_id WHERE s.stage='nomination' AND c.candidate_id=? LIMIT 1",[$id])) throw new DomainException('Member has not been nominated.');
         query('INSERT INTO nominee_decisions (member_id,decision) VALUES (?,?) ON DUPLICATE KEY UPDATE decision=VALUES(decision)',[$id,$decision]); audit('nominee_decision',['member_id'=>$id,'decision'=>$decision]);
     });
 }

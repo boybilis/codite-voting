@@ -121,6 +121,11 @@ if($_SERVER['REQUEST_METHOD']==='POST') {
                         foreach(['nomination_limit','vote_limit','officer_count'] as $key) { $n=filter_var($_POST[$key]??null,FILTER_VALIDATE_INT); if($n===false || $n<1 || $n>100) throw new DomainException('Limits must be whole numbers from 1 to 100.'); $values[]=$n; }
                         query('UPDATE elections SET title=?,nomination_limit=?,vote_limit=?,officer_count=? WHERE id=1',array_merge([$title],$values)); audit('settings_updated');
                     }); flash('Election settings saved.'); break;
+                case 'manual_runoff':
+                    $ids=$_POST['runoff_candidates']??[];
+                    if (!is_array($ids)) throw new DomainException('Choose registered members.');
+                    prepareManualRunoff($ids,(int)($_POST['remaining_positions']??0));
+                    flash('Runoff nominees added as accepted candidates. Review the list, then open voting.'); break;
                 case 'phase':
                     $next=(string)($_POST['next']??''); changePhase($next);
                     if ($next==='review') {

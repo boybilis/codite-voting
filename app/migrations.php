@@ -6,6 +6,10 @@ function migrateMemberProfiles(): void {
         try { db()->exec('ALTER TABLE elections ADD COLUMN member_otp_enabled TINYINT(1) NULL DEFAULT NULL'); }
         catch (PDOException $error) { if (($error->errorInfo[1]??null)!==1060) throw $error; }
     }
+    if ($columns && !one("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='nominee_decisions' AND COLUMN_NAME='is_manual'")) {
+        try { db()->exec('ALTER TABLE nominee_decisions ADD COLUMN is_manual TINYINT(1) NOT NULL DEFAULT 0'); }
+        catch (PDOException $error) { if (($error->errorInfo[1]??null)!==1060) throw $error; }
+    }
     if (!$columns) return; // The first-time installer creates the complete schema.
     if (!one("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='nominee_invitations'")) {
         db()->exec(file_get_contents(__DIR__.'/invitation-schema.sql'));
