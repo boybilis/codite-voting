@@ -18,7 +18,7 @@ The local configuration uses `mail.transport = log`. It does **not** send real e
 ## Election workflow
 
 1. **Settings:** Choose an election title, maximum nominees per member, maximum votes per member, and number of officer positions. These are separate limits from 1 to 100. They lock once nominations open.
-2. **Members:** Add first name, last name, optional middle initial, email, School, and Position individually, or import a CSV. Duplicate emails are skipped without overwriting existing members. The register can be expanded through the nomination phase and locks afterward.
+2. **Members:** Add first name, last name, optional middle initial, email, School, and Position individually, or import a CSV. CSV imports update existing members matched by email; individual entry still rejects duplicates. The register can be expanded through the nomination phase and locks afterward.
 3. **Open nominations:** Share the nomination link or download its QR code. Emails not in the active member register display "This email is not registered. Please contact your administrator." and remain on the email-entry page. Registered members verify a six-digit email code, select between one and the configured maximum number of members, and submit once. Self-nomination is allowed.
 4. **Close nominations:** The app enters nominee review and queues a private invitation email for every nominated member. Each nominee opens their link and confirms **Accept nomination** or **Decline nomination**. Acceptance automatically adds them to the official voting candidates. The admin can still record a confirmed response manually. Pending responses block voting.
 5. **Open voting:** At least one nominee must accept. Share the separate voting QR/link. Members verify their email again. Only accepted nominees appear, and each member can submit one voting ballot with up to the configured number of selections.
@@ -109,7 +109,7 @@ Future pulls preserve your untracked configuration and local data. Keep server-s
 
 School (up to 160 characters) and Position (up to 120 characters, such as Teacher or Principal) are optional member profile fields. The Members page allows administrators to edit these fields during draft and nominations. They are shown on member ballots, nominee lists, results, and tally exports. Member and ballot searches include these fields.
 
-Older four-column CSV files still work; add optional school and position columns to import these details. Duplicate emails are still skipped; use Save profile in the directory to update existing records.
+Older four-column CSV files still work; add optional school and position columns to import these details. Matching emails update existing records; omitted optional columns keep their saved values. You can also use Save profile in the directory.
 
 Existing deployments add the two database columns automatically on the first request after updating. This preserves members, nominations, and votes, and requires the application's database user to have ALTER permission on the members table. Existing profiles start with blank School and Position values.
 
@@ -168,3 +168,6 @@ This update automatically creates the nominee_invitations table on an existing i
 
 ### Nominee profile pictures
 Nominees without a saved picture must upload a JPG, PNG, or WebP picture when accepting by email link (maximum 2 MB, 4096 pixels per side). A saved member picture is reused automatically; nominees can optionally upload a replacement. Resetting nominations and votes retains saved pictures when members are retained. Declining does not require a picture. Verified voters see pictures beside accepted candidates. Photos are stored privately in MySQL; the upgrade automatically creates the photo table. PHP fileinfo must be enabled, and upload_max_filesize must be at least 2M with post_max_size greater than 2M. A full member reset removes photos. CSV backups contain text profiles only; photos require a database backup or a fresh upload in the next nomination round. Existing manually accepted candidates remain eligible without a picture.
+
+### Member status and CSV updates
+Member profiles now include member_status: Officer or Member (case-insensitive on import). Existing and new profiles default to Member. CSV uploads match email addresses and update supplied profile columns; missing optional columns preserve existing values. Blank status values are rejected. New emails create members. Photos, IDs, nomination responses and ballots are retained. The member register remains editable only in draft or nomination phases. Download the updated CSV template from Members; backups now include member_status. The database column is added automatically on upgrade.

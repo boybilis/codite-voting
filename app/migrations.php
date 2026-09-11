@@ -7,6 +7,10 @@ function migrateMemberProfiles(): void {
         db()->exec(file_get_contents(__DIR__.'/invitation-schema.sql'));
     }
     if (!one("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='member_photos'")) db()->exec(file_get_contents(__DIR__.'/photo-schema.sql'));
+    if (!in_array('member_status',$columns,true)) {
+        try { db()->exec("ALTER TABLE members ADD COLUMN member_status ENUM('Officer','Member') NOT NULL DEFAULT 'Member'"); }
+        catch (PDOException $error) { if (($error->errorInfo[1]??null)!==1060) throw $error; }
+    }
     foreach (['school'=>160, 'position'=>120] as $column=>$length) {
         if (in_array($column, $columns, true)) continue;
         try { db()->exec("ALTER TABLE members ADD COLUMN $column VARCHAR($length) NOT NULL DEFAULT ''"); }

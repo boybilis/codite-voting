@@ -55,6 +55,15 @@ try {
     post('admin','index.php?page=members',['action'=>'update_profile','member_id'=>$b,'school'=>'Central School','position'=>'Principal']);
     [, $profileHtml]=request('admin','index.php?page=members&q=Central');
     check(str_contains($profileHtml,'Central School') && str_contains($profileHtml,'Principal'),'School and Position are editable and searchable');
+    $statusCsv=$folder.'/status.csv';
+    file_put_contents($statusCsv,"first_name,last_name,middle_initial,email,member_status\nBen,Member,A,BEN@example.test,Officer\n");
+    [, $html]=post('admin','index.php?page=members',['action'=>'import_csv','csv'=>new CURLFile($statusCsv,'text/csv','status.csv')]);
+    check(str_contains($html,'Import complete: 0 added, 1 updated.'),'CSV reupload reports updated members');
+    $saved=$pdo->query('SELECT id,school,member_status FROM members WHERE id='.(int)$b)->fetch(PDO::FETCH_ASSOC);
+    check((int)$saved['id']===(int)$b && $saved['school']==='Central School' && $saved['member_status']==='Officer','CSV status update preserves ID and omitted school');
+    file_put_contents($statusCsv,"first_name,last_name,middle_initial,email\nBen,Member,A,ben@example.test\n");
+    post('admin','index.php?page=members',['action'=>'import_csv','csv'=>new CURLFile($statusCsv,'text/csv','status.csv')]);
+    check($pdo->query('SELECT member_status FROM members WHERE id='.(int)$b)->fetchColumn()==='Officer','Legacy CSV retains Officer status');
     post('admin','index.php?page=dashboard',['action'=>'phase','next'=>'nomination']);
     $nom='index.php?page=participate&stage=nomination';
     [, $html]=request('member',$nom); check(str_contains($html,'Verify your membership') && !str_contains($html,'Ana A. Member'),'Candidate names are hidden before verification');
@@ -170,7 +179,7 @@ try {
     [, $html]=post('admin','index.php?page=login',['action'=>'login','email'=>'admin@example.test','password'=>$password]); check(str_contains($html,'Election overview'),'Admin can sign out and sign back in');
     $special=$pdo->prepare('UPDATE members SET first_name=?,school=?,position=? WHERE id=?');
     $special->execute(['Niño "Alex"','=SUM(1,2)',"'Principal",$a]);
-    $fields='first_name,last_name,middle_initial,email,school,position';
+    $fields='first_name,last_name,middle_initial,email,school,position,member_status';
     $original=$pdo->query('SELECT '.$fields.' FROM members ORDER BY email')->fetchAll(PDO::FETCH_ASSOC);
     [, $backup]=request('admin','index.php?page=export_members&q=nonexistent&p=999');
     check(str_contains($backup,'assembly_backup_version') && str_contains($backup,'ana@example.test') && str_contains($backup,'cara@example.test'),'Member backup exports all profiles despite filters and pagination');
@@ -186,7 +195,7 @@ try {
     check(count(preg_split('/\r?\n/',trim($emptyBackup)))===1,'Empty register downloads a CSV header');
     [, $html]=post('admin','index.php?page=members',['action'=>'import_csv','csv'=>new CURLFile($folder.'/members-backup.csv','text/csv','members-backup.csv')]);
     check((int)$pdo->query('SELECT COUNT(*) FROM member_photos')->fetchColumn()===0,'Full reset removes stored pictures');
-    check(str_contains($html,'Import complete: 3 added, 0 duplicate emails skipped.'),'Downloaded backup is accepted by the CSV upload');
+    check(str_contains($html,'Import complete: 3 added, 0 updated.'),'Downloaded backup is accepted by the CSV upload');
     $restored=$pdo->query('SELECT '.$fields.' FROM members ORDER BY email')->fetchAll(PDO::FETCH_ASSOC);
     check($restored===$original,'Full reset and CSV restore preserve all profile fields including Unicode, quotes, and formula-like text');
     check(str_contains($html,'Download members CSV'),'Member directory exposes backup download');

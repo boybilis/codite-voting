@@ -104,19 +104,25 @@ function memberInput(array $input): array {
     }
     $m['email'] = strtolower($m['email']);
     if (!$m['first_name'] || !$m['last_name'] || !filter_var($m['email'], FILTER_VALIDATE_EMAIL)) throw new DomainException('Every member needs a first name, last name, and valid email.');
+    $m['member_status']=ucfirst(strtolower(trim((string)($input['member_status']??'Member'))));
+    if (!in_array($m['member_status'],['Officer','Member'],true)) throw new DomainException('Member status must be Officer or Member.');
     return $m;
 }
-function addMembers(array $rows): array {
-    return transaction(function () use ($rows) {
+function addMembers(array $rows, bool $updateExisting=false): array {
+    return transaction(function () use ($rows,$updateExisting) {
         $el = election(true);
         if (!in_array($el['phase'], ['draft','nomination'], true)) throw new DomainException('The member register is locked after nominations close.');
         $added = 0; $skipped = 0;
         foreach ($rows as $row) {
-            $m = memberInput($row);
-            if (one('SELECT id FROM members WHERE email=?', [$m['email']])) { $skipped++; continue; }
-            query('INSERT INTO members (first_name,last_name,middle_initial,email,school,position) VALUES (?,?,?,?,?,?)', array_values($m)); $added++;
+            $existing=one('SELECT * FROM members WHERE email=?',[strtolower(trim((string)($row['email']??'')))]);
+            $m = memberInput($updateExisting && $existing ? array_merge($existing,$row) : $row);
+            if ($existing) {
+                if ($updateExisting) query('UPDATE members SET first_name=?,last_name=?,middle_initial=?,email=?,school=?,position=?,member_status=? WHERE id=?',array_merge(array_values($m),[$existing['id']]));
+                $skipped++; continue;
+            }
+            query('INSERT INTO members (first_name,last_name,middle_initial,email,school,position,member_status) VALUES (?,?,?,?,?,?,?)', array_values($m)); $added++;
         }
-        audit('members_added', compact('added','skipped')); return [$added,$skipped];
+        audit($updateExisting?'members_imported':'members_added', ['added'=>$added,$updateExisting?'updated':'skipped'=>$skipped]); return [$added,$skipped];
     });
 }
 function parseCsv(string $path): array {
@@ -131,7 +137,7 @@ function parseCsv(string $path): array {
             $line++; if ($row === [null]) continue;
             if (count($rows)>=5000) throw new DomainException('Upload at most 5,000 members at a time.');
             if (count($row)!==count($header)) throw new DomainException("CSV row $line has the wrong number of fields.");
-            try { $rows[]=memberInput(decodeMemberBackup(array_combine($header,$row))); } catch (DomainException $e) { throw new DomainException("CSV row $line: " . $e->getMessage()); }
+            try { $record=decodeMemberBackup(array_combine($header,$row)); $rows[]=array_intersect_key(memberInput($record),$record); } catch (DomainException $e) { throw new DomainException("CSV row $line: " . $e->getMessage()); }
         }
         if (!$rows) throw new DomainException('The CSV contains no members.'); return $rows;
     } finally { fclose($f); }
@@ -214,8 +220,8 @@ function updateMemberProfile(int $id, array $input): void {
         if (!in_array(election(true)['phase'], ['draft','nomination'], true)) throw new DomainException('Member profiles are locked after nominations close.');
         $member = one('SELECT * FROM members WHERE id=?', [$id]);
         if (!$member) throw new DomainException('Member not found.');
-        $validated = memberInput(array_merge($member, ['school'=>$input['school']??'', 'position'=>$input['position']??'']));
-        query('UPDATE members SET school=?,position=? WHERE id=?', [$validated['school'],$validated['position'],$id]);
+        $validated = memberInput(array_merge($member, ['school'=>$input['school']??'', 'position'=>$input['position']??'', 'member_status'=>$input['member_status']??$member['member_status']]));
+        query('UPDATE members SET school=?,position=?,member_status=? WHERE id=?', [$validated['school'],$validated['position'],$validated['member_status'],$id]);
         audit('member_profile_updated', ['member_id'=>$id]);
     });
 }

@@ -15,7 +15,7 @@ try {
     db()->exec("USE `$testDb`");
     db()->exec(file_get_contents(dirname(__DIR__).'/app/schema.sql'));
     db()->exec("SET SESSION sql_mode = 'STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION,ONLY_FULL_GROUP_BY'");
-    db()->exec('ALTER TABLE members DROP COLUMN school, DROP COLUMN position');
+    db()->exec('ALTER TABLE members DROP COLUMN school, DROP COLUMN position, DROP COLUMN member_status');
     migrateMemberProfiles(); migrateMemberProfiles();
     check(count(query("SHOW COLUMNS FROM members WHERE Field IN ('school','position')")->fetchAll())===2,'Existing database profile upgrade is repeatable');
     check(election()['phase']==='draft','Fresh election starts in draft');
@@ -37,6 +37,11 @@ try {
     $ids=array_map('intval',query('SELECT id FROM members ORDER BY id')->fetchAll(PDO::FETCH_COLUMN));
     [$a,$b,$c,$d]=$ids;
     updateMemberProfile($a,['school'=>'Central School','position'=>'Teacher']);
+    [$new,$updated]=addMembers([array_merge($members[0],['member_status'=>'officer'])],true);
+    check($new===0 && $updated===1 && one('SELECT member_status FROM members WHERE id=?',[$a])['member_status']==='Officer','CSV update matches email and normalizes member status');
+    addMembers([$members[0]],true);
+    check(one('SELECT member_status FROM members WHERE id=?',[$a])['member_status']==='Officer','Omitted status preserves existing Officer status');
+    rejects(fn()=>addMembers([array_merge($members[0],['member_status'=>'Invalid'])],true),'Invalid member status rejected');
     check(one('SELECT school,position FROM members WHERE id=?',[$a])===['school'=>'Central School','position'=>'Teacher'],'Existing member profile can be updated');
     rejects(fn()=>updateMemberProfile($a,['school'=>str_repeat('X',161)]),'School length is validated');
     check(memberInput($members[0])['school']==='', 'Older member inputs remain compatible');
