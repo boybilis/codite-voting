@@ -103,6 +103,15 @@ if($_SERVER['REQUEST_METHOD']==='POST') {
                     $file=$_FILES['csv']??null;
                     if(!$file || $file['error']!==UPLOAD_ERR_OK || $file['size']>2*1024*1024 || !is_uploaded_file($file['tmp_name']) || strtolower(pathinfo($file['name'],PATHINFO_EXTENSION))!=='csv') throw new DomainException('Upload a CSV file up to 2 MB.');
                     [$added,$updated]=addMembers(parseCsv($file['tmp_name']),true); flash("Import complete: $added added, $updated updated."); break;
+                case 'toggle_member_otp':
+                    $enabled=$_POST['enabled']??null;
+                    if (!in_array($enabled,['0','1'],true)) throw new DomainException('Choose whether member OTP is on or off.');
+                    transaction(function () use ($enabled) {
+                        election(true);
+                        query('UPDATE elections SET member_otp_enabled=? WHERE id=1',[(int)$enabled]);
+                        audit('member_otp_changed',['enabled'=>(bool)$enabled]);
+                    });
+                    flash($enabled==='1'?'Member OTP is now on.':'Member OTP is now off for testing.'); break;
                 case 'settings':
                     transaction(function(){
                         if(election(true)['phase']!=='draft') throw new DomainException('Election settings are locked once nominations open.');

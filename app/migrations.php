@@ -2,6 +2,10 @@
 // Add profile fields to existing installations without removing election data.
 function migrateMemberProfiles(): void {
     $columns = query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='members'")->fetchAll(PDO::FETCH_COLUMN);
+    if ($columns && !one("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='elections' AND COLUMN_NAME='member_otp_enabled'")) {
+        try { db()->exec('ALTER TABLE elections ADD COLUMN member_otp_enabled TINYINT(1) NULL DEFAULT NULL'); }
+        catch (PDOException $error) { if (($error->errorInfo[1]??null)!==1060) throw $error; }
+    }
     if (!$columns) return; // The first-time installer creates the complete schema.
     if (!one("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='nominee_invitations'")) {
         db()->exec(file_get_contents(__DIR__.'/invitation-schema.sql'));

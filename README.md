@@ -178,3 +178,5 @@ OTP request limits: a 60-second per-email cooldown and a configurable default of
 
 ### Temporary email-only member access
 Member OTP is temporarily disabled by default for testing. Registered active members enter their email and proceed to nomination or voting without a code; unknown emails remain blocked. This does not verify mailbox ownership. Set member_otp_enabled to true in config.local.php to restore OTP; email-only sessions must then verify again. Administrator login, reset OTP, ballot limits and once-per-stage rules remain unchanged. Nominee invitation emails continue normally.
+
+Administrators can now turn member OTP on or off in Settings → Member OTP, in any election phase. The saved database setting overrides config.local.php; before a choice is saved, the existing configuration/default applies (off for testing). Resets preserve this setting. Successful OTP verification resets only that email’s hourly request counter to zero; resend cooldown, shared-network limits, and incorrect-code protections remain.

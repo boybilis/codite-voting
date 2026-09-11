@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS admins (
  password_hash VARCHAR(255) NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE IF NOT EXISTS elections (
+ member_otp_enabled TINYINT(1) NULL DEFAULT NULL,
  id BIGINT UNSIGNED PRIMARY KEY,
  title VARCHAR(160) NOT NULL DEFAULT 'Officer Election',
  phase ENUM('draft','nomination','review','voting','closed') NOT NULL DEFAULT 'draft',
