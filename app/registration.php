@@ -1,6 +1,6 @@
 <?php
 function academicYearOptions(): array {
-    $start=(int)(new DateTimeImmutable('now',new DateTimeZone('Asia/Manila')))->format('Y');
+    $start=(int)substr(currentAcademicYear(),2,4);
     $years=[]; for ($y=$start-1;$y<=$start+4;$y++) $years[]='AY'.$y.'-'.($y+1);
     return $years;
 }

@@ -148,6 +148,16 @@ try {
     resetElection('all',3);
     check((int)query('SELECT COUNT(*) FROM members')->fetchColumn()===0,'Full reset clears member register');
     check((int)query('SELECT COUNT(*) FROM audit_log')->fetchColumn()>0,'Reset retains audit history');
+    check(currentAcademicYear(new DateTimeImmutable('2027-05-31 23:59:59',new DateTimeZone('Asia/Manila')))==='AY2026-2027','Academic year lasts through May 31 in Philippine time');
+    check(currentAcademicYear(new DateTimeImmutable('2027-06-01 00:00:00',new DateTimeZone('Asia/Manila')))==='AY2027-2028','Academic year changes exactly on June 1');
+    check(academicYearDates('AY2026-2027')===['starts'=>'2026-06-01','expires'=>'2027-05-31'],'Academic-year coverage uses June through May');
+    rejects(fn()=>academicYearDates('AY2026-2028'),'Nonconsecutive academic year rejected');
+    $history=[['status'=>'approved','academic_year'=>'AY2026-2027','payment_date'=>'2026-06-15'],['status'=>'pending','academic_year'=>'AY2027-2028','payment_date'=>'2027-05-01']];
+    check(membershipSummary($history,new DateTimeImmutable('2027-05-31',new DateTimeZone('Asia/Manila')))['active'],'Approved current year is active before expiry');
+    check(!membershipSummary($history,new DateTimeImmutable('2027-06-01',new DateTimeZone('Asia/Manila')))['active'],'Expired year and pending renewal do not give current-year membership');
+    $history[1]['status']='approved';
+    $summary=membershipSummary($history,new DateTimeImmutable('2027-06-01',new DateTimeZone('Asia/Manila')));
+    check($summary['active'] && $summary['first_recorded']==='2026-06-15','Approved renewal activates next year and preserves earliest membership record');
     $qr=Endroid\QrCode\QrCode::create('https://example.test/index.php?page=participate&stage=voting');
     $svg=(new Endroid\QrCode\Writer\SvgWriter())->write($qr)->getString();
     check(str_contains($svg,'<svg') && strlen($svg)>1000,'QR code generates a real SVG');

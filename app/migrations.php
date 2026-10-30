@@ -11,6 +11,7 @@ function migrateMemberProfiles(): void {
         catch (PDOException $error) { if (($error->errorInfo[1]??null)!==1060) throw $error; }
     }
     if (!$columns) return; // The first-time installer creates the complete schema.
+    if (!one("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='membership_renewals'")) db()->exec(file_get_contents(__DIR__.'/renewal-schema.sql'));
     if (!one("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='membership_registrations'")) db()->exec(file_get_contents(__DIR__.'/registration-schema.sql'));
     if (!one("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='nominee_invitations'")) {
         db()->exec(file_get_contents(__DIR__.'/invitation-schema.sql'));

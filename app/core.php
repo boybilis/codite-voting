@@ -275,3 +275,5 @@ function decodeMemberBackup(array $record): array {
 require_once __DIR__.'/invitations.php';
 
 require_once __DIR__.'/registration.php';
+
+require_once __DIR__.'/membership-portal.php';
