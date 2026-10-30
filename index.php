@@ -2,7 +2,7 @@
 require __DIR__.'/app/bootstrap.php';
 require __DIR__.'/app/views.php';
 $page=(string)($_GET['page']??'dashboard');
-$public=['login','participate','nominee_response','candidate_photo'];
+$public=['login','participate','nominee_response','candidate_photo','registration'];
 try {
     $installed = (bool)one('SELECT id FROM admins LIMIT 1');
 } catch (PDOException $error) {
@@ -11,6 +11,14 @@ try {
 }
 if (!$installed) redirect('setup.php');
 if(!in_array($page,$public,true)) requireAdmin();
+if ($page==='registration_proof') {
+    $r=one('SELECT proof_mime,proof_data FROM membership_registrations WHERE member_id=?',[(int)($_GET['id']??0)]);
+    if (!$r) { http_response_code(404); exit; }
+    $ext=['image/jpeg'=>'jpg','image/png'=>'png','image/webp'=>'webp','application/pdf'=>'pdf'][$r['proof_mime']];
+    header('Content-Type: '.$r['proof_mime']); header('Content-Disposition: inline; filename="payment-proof.'.$ext.'"');
+    header('X-Frame-Options: SAMEORIGIN'); header("Content-Security-Policy: default-src 'none'; frame-ancestors 'self'; sandbox");
+    header('Content-Length: '.strlen($r['proof_data'])); echo $r['proof_data']; exit;
+}
 if ($page==='candidate_photo') {
     $el=election(); $v=$_SESSION['verified']??null;
     $allowed=admin() || ($v && !(memberOtpEnabled() && !empty($v['email_only'])) && $v['expires']>=time() && $v['stage']==='voting' && $v['generation']===(int)$el['generation'] && $el['phase']==='voting' && one('SELECT id FROM members WHERE id=? AND active=1',[$v['member_id']]));
@@ -44,6 +52,12 @@ if($_SERVER['REQUEST_METHOD']==='POST') {
             if(!$a || !password_verify((string)($_POST['password']??''),$a['password_hash'])) throw new DomainException('Email or password is incorrect.');
             session_regenerate_id(true); $_SESSION['admin_id']=$a['id']; $_SESSION['csrf']=bin2hex(random_bytes(32));
             audit('admin_login'); redirect('index.php');
+         } elseif ($page==='registration') {
+            if ($action!=='register_membership') throw new DomainException('Unknown action.');
+            $_SESSION['registration_values']=array_intersect_key($_POST,array_flip(['first_name','last_name','middle_initial','email','school','position','contact_number','birthday','department','institution_address','joined_year','payment_date','payment_amount','interests','suggestions','willing_speaker','academic_year']));
+            rateLimit('registration-ip:'.($_SERVER['REMOTE_ADDR']??''),20,3600,'Too many registration requests from this connection.');
+            registerMembership($_POST,$_FILES['payment_proof']??null);
+            unset($_SESSION['registration_values']); $_SESSION['registration_sent']=true;
          } elseif ($page==='nominee_response') {
             if ($action!=='nominee_decision') throw new DomainException('Unknown action.');
             respondToNomination((string)($_SESSION['nominee_token']??''),(string)($_POST['decision']??''),$_FILES['profile_photo']??null);
@@ -95,6 +109,9 @@ if($_SERVER['REQUEST_METHOD']==='POST') {
         } else {
             $a=requireAdmin();
             switch($action) {
+                case 'review_membership':
+                    reviewMembership((int)($_POST['member_id']??0),(string)($_POST['decision']??''),($_POST['verified']??'')==='1');
+                    flash('Registration review saved.'); break;
                 case 'add_member':
                     [$added,$skipped]=addMembers([$_POST]); flash($added?'Member added.':'That email is already registered.',$added?'success':'warning'); break;
                 case 'update_profile':
@@ -178,7 +195,7 @@ if ($page === 'export_members') {
     fwrite($out, "\xEF\xBB\xBF");
     $fields = ['first_name','last_name','middle_initial','email','school','position','member_status'];
     fputcsv($out, array_merge($fields, ['assembly_backup_version']), ',', '"', '');
-    $members = query('SELECT first_name,last_name,middle_initial,email,school,position,member_status FROM members ORDER BY last_name,first_name,id');
+    $members = query('SELECT first_name,last_name,middle_initial,email,school,position,member_status FROM members WHERE active=1 ORDER BY last_name,first_name,id');
     while ($member = $members->fetch()) {
         $values = array_map(fn($field)=>memberBackupText($member[$field]), $fields);
         fputcsv($out, array_merge($values, ['1']), ',', '"', '');
@@ -192,8 +209,9 @@ if($page==='qr') {
     $result=(new Endroid\QrCode\Writer\SvgWriter())->write($qr);
     header('Content-Type: image/svg+xml'); if(isset($_GET['download'])) header('Content-Disposition: attachment; filename="'.$stage.'-qr.svg"'); echo $result->getString(); exit;
 }
-if($page==='nominee_response') renderNomineeResponse();
+if($page==='registration') renderRegistration();
+elseif($page==='nominee_response') renderNomineeResponse();
 elseif($page==='login') renderLogin();
 elseif($page==='participate') renderMember((string)($_GET['stage']??'nomination'));
-elseif(in_array($page,['dashboard','members','nominations','voting','results','settings','audit'],true)) renderAdmin($page);
+elseif(in_array($page,['dashboard','members','registrations','nominations','voting','results','settings','audit'],true)) renderAdmin($page);
 else { http_response_code(404); renderAdmin('not-found'); }
